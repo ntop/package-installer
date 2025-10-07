@@ -52,11 +52,12 @@ function install_clickhouse() {
 
 function install() {
     if test -f "/usr/bin/lsb_release"; then
-	apt -y install $1 || EXIT_CODE=$?
+	apt -y install $1 || true
     else
-	dnf install -y $1 || EXIT_CODE=$?	
+	dnf install -y $1 || true
     fi
 
+    EXIT_CODE=$?
     if [ "$EXIT_CODE" = "0" ]; then
 	whiptail --title "Report" --msgbox "$1 installed successfully. $2" 12 80
     else
@@ -123,7 +124,7 @@ function installMenu {
 	fi
 
 	if [[ $OPTIONS == *"zc"* ]]; then
-	    install "pfring pfring-dkms" "Please run 'sudo pf_ringcfg' to configure ZC drivers and interfaces"	    
+	    install "pfring pfring-dkms" "Please run 'sudo pf_ringcfg' to configure ZC drivers and interfaces"
 	fi
 
 	if [[ $OPTIONS == *"n2disk"* ]]; then
