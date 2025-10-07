@@ -108,7 +108,11 @@ function installMenu {
 	fi
 
 	if [[ $OPTIONS == *"nedge"* ]]; then
-	    install "nedge ntopng-data"
+	    if ! test -f "/usr/bin/lsb_release"; then
+		whiptail --title "Error" --msgbox "This application is not available on this platform" 12 80
+	    else
+		install "nedge ntopng-data"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"clickhouse"* ]]; then
@@ -172,7 +176,11 @@ function removeMenu {
 	fi
 
 	if [[ $OPTIONS == *"nedge"* ]]; then
-	    remove "nedge ntopng-data"
+	    if ! test -f "/usr/bin/lsb_release"; then
+		whiptail --title "Error" --msgbox "This application is not available on this platform" 12 80
+	    else
+		remove "nedge ntopng-data"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"nprobe"* ]]; then
