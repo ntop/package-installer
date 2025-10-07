@@ -1,0 +1,37 @@
+Summary: ntop package installer
+Name: ntop-installer
+Version: @VERSION@
+Release: @REVISION@
+License: GPL
+URL: http://www.ntop.org/
+Group: Networking/Utilities
+Packager: Luca Deri <deri@ntop.org>
+Requires: newt
+BuildArch: noarch
+
+%description
+ntop package installer
+
+%setup -q
+
+%install
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+if [ -d $RPM_BUILD_ROOT ]; then
+	\rm -rf $RPM_BUILD_ROOT
+fi
+
+mkdir -p $RPM_BUILD_ROOT/usr/bin
+cp $HOME/package-installer/ntop-installer $RPM_BUILD_ROOT/usr/bin
+chmod gou+x $RPM_BUILD_ROOT/usr/bin
+
+%files
+/usr/bin/ntop-installer
+
+# Set the default attributes of all of the files specified to have an
+# owner and group of root and to inherit the permissions of the file
+# itself.
+%defattr(-, root, root)
+
+%changelog
+* Tue Oct 7 2025 Luca Deri <deri@ntop.org> 1.0
+- Current package version

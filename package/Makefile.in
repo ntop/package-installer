@@ -1,0 +1,12 @@
+RPM_PKG=@APP@-@VERSION@-@REVISION@.noarch.rpm
+
+all:
+	rpmbuild -bb @APP@.spec
+	@RPM_SIGN_CMD@ $(HOME)/rpmbuild/RPMS/noarch/$(RPM_PKG)
+	@echo ""
+	@echo "Package contents:"
+	@rpm -qpl $(HOME)/rpmbuild/RPMS/noarch/$(RPM_PKG)
+	@echo "The package is now available in $(HOME)/rpmbuild/RPMS/noarch/$(RPM_PKG)"
+
+clean:
+	/bin/rm -f *~ Mahefile @APP@.spec
