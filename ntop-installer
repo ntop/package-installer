@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 #
 #  Copyright (C) 2002-25 - ntop.org
 #
@@ -8,6 +8,8 @@
 
 set -e
 set -o pipefail
+
+TMP_FILE="/tmp/ntop-installer.tmp"
 
 # Exit function
 function checkExit {
@@ -51,13 +53,14 @@ function install_clickhouse() {
 ##############################
 
 function install() {
+    EXIT_CODE=0
+
     if test -f "/usr/bin/lsb_release"; then
-	apt -y install $1 || true
+	apt -y install $1 || EXIT_CODE=?
     else
-	dnf install -y $1 || true
+	dnf install -y $1 || EXIT_CODE=?
     fi
 
-    EXIT_CODE=$?
     if [ "$EXIT_CODE" = "0" ]; then
 	whiptail --title "Report" --msgbox "$1 installed successfully. $2" 12 80
     else
@@ -68,13 +71,14 @@ function install() {
 ##############################
 
 function remove() {
+    EXIT_CODE=0
+
     if test -f "/usr/bin/lsb_release"; then
-	apt -y remove $1 || true
+	apt -y remove $1 || EXIT_CODE=?
     else
-	dnf remove -y $1 || true
+	dnf remove -y $1 || EXIT_CODE=?
     fi
 
-    EXIT_CODE=$?
     if [ "$EXIT_CODE" = "0" ]; then
 	whiptail --title "Report" --msgbox "$1 removed successfully" 12 80
     else
@@ -82,69 +86,196 @@ function remove() {
     fi
 }
 
+
+## The Gauge:  Produce the number stream
+showprogress(){
+    start=$1; end=$2; shortest=$3; longest=$4
+
+    for n in $(seq $start $end); do
+        echo $n
+        pause=$(shuf -i ${shortest:=1}-${longest:=3} -n 1)  # random wait between 1 and 3 seconds
+        sleep $pause
+    done
+}
+
+##############################
+
+function is_installed() {
+    NUM=`cat $TMP_FILE | grep $1 | wc -l`
+
+    if test "$NUM" -lt 1; then
+	echo "OFF"
+    else
+	echo "ON"
+    fi
+}
+
+##############################
+
+function is_ntopng_installed() {
+    is_installed "ntopng"
+}
+
+##############################
+
+function is_nedge_installed() {
+    is_installed "nedge"
+}
+
+##############################
+
+function is_clickhouse_installed() {
+    is_installed "clickhouse-server"
+}
+
+##############################
+
+function is_nprobe_installed() {
+    is_installed "nprobe"
+}
+
+##############################
+
+function is_cento_installed() {
+    is_installed "cento"
+}
+
+##############################
+
+function is_zc_installed() {
+    is_installed "pfring"
+}
+
+##############################
+
+function is_n2disk_installed() {
+    is_installed "n2disk"
+}
+
+##############################
+
+function is_ntap_installed() {
+    is_installed "ntap"
+}
+
+##############################
+
+function is_nscrub_installed() {
+    is_installed "nscrub"
+}
+
+##############################
+
+function is_ipt_geofence_installed() {
+    is_installed "ipt_geofence"
+}
+
 ##############################
 
 function installMenu {
-    # Create a whiptail checklist
-    OPTIONS=$(whiptail --title "System Setup" --checklist \
-		       "Select the components you want to install:" 20 78 12 \
-       		       "ntopng"    "ntopng" OFF \
-		       "nedge"     "ntopng Edge (nEdge)" OFF \
-       		       "clickhouse" "ClickHouse database" OFF \
-		       "nprobe" "Network Probe" OFF \
-       		       "cento"  "High speed nProbe (100 Gbit)" OFF \
-       		       "zc"     "PF_RING Zero Copy" OFF \
-		       "n2disk" "Packet to disk" OFF \
-		       "ntap"   "Network tap" OFF \
-       		       "nscrub" "DDoS traffic scrubber" OFF \
-       		       "ipt_geofence" "Network protection" OFF \
-		       3>&1 1>&2 2>&3)
+    refresh_package_list
+
+    NTOPNG=$(is_ntopng_installed)
+    NEDGE=$(is_nedge_installed)
+    CLICKHOUSE=$(is_clickhouse_installed)
+    NPROBE=$(is_nprobe_installed)
+    CENTO=$(is_cento_installed)
+    ZC=$(is_zc_installed)
+    N2DISK=$(is_n2disk_installed)
+    NTAP=$(is_ntap_installed)
+    NSCRUB=$(is_nscrub_installed)
+    GEOFENCE=$(is_ipt_geofence_installed)
+
+
+    if test -f "/usr/bin/lsb_release"; then
+	OPTIONS=$(whiptail --title "Install Packages" --checklist \
+			   "Select the components you want to install: those marked are already installed" 20 78 12 \
+       			   "ntopng"    "ntopng" $NTOPNG \
+			   "nedge"        "ntopng Edge (nEdge)" $NEDGE \
+       			   "clickhouse" "ClickHouse database" $CLICKHOUSE \
+			   "nprobe" "Network Probe" $NPROBE \
+       			   "cento"  "nProbe Cento" $CENTO \
+       			   "zc"     "PF_RING Zero Copy" $ZC \
+			   "n2disk" "Packet to disk" $N2DISK \
+			   "ntap"   "Network tap" $NTAP \
+       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
+			   "ipt_geofence" "Network protection" $GEOFENCE \
+			   3>&1 1>&2 2>&3)
+    else
+	OPTIONS=$(whiptail --title "Install Packages" --checklist \
+			   "Select the components you want to install: those marked are already installed" 20 78 12 \
+       			   "ntopng"    "ntopng" $NTOPNG \
+       			   "clickhouse" "ClickHouse database" $CLICKHOUSE \
+			   "nprobe" "Network Probe" $NPROBE \
+       			   "cento"  "nProbe Cento" $CENTO \
+       			   "zc"     "PF_RING Zero Copy" $ZC \
+			   "n2disk" "Packet to disk" $N2DISK \
+			   "ntap"   "Network tap" $NTAP \
+       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
+			   3>&1 1>&2 2>&3)
+    fi
 
     EXIT_STATUS=$?
 
     if [ $EXIT_STATUS = 0 ]; then
-	if [[ $OPTIONS == *"ntopng"* ]]; then
-	    install "ntopng ntopng-data"
+	if test $NTOPNG == "OFF"; then
+	    if [[ $OPTIONS == *"ntopng"* ]]; then
+		install "ntopng ntopng-data"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"nedge"* ]]; then
-	    if ! test -f "/usr/bin/lsb_release"; then
-		whiptail --title "Error" --msgbox "This application is not available on this platform" 12 80
-	    else
+	    if test $NEDGE == "OFF"; then
 		install "nedge ntopng-data"
 	    fi
 	fi
 
 	if [[ $OPTIONS == *"clickhouse"* ]]; then
-	    install_clickhouse
+	    if test $CLICKHOUSE == "OFF"; then
+		install_clickhouse
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"nprobe"* ]]; then
-	    install "nprobe"
+	    if test $NPROBE == "OFF"; then
+		install "nprobe"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"cento"* ]]; then
-	    install "cento"
+	    if test $CENTO == "OFF"; then
+		install "cento"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"zc"* ]]; then
+	    if test $ZC == "OFF"; then
 	    install "pfring pfring-dkms" "Please run 'sudo pf_ringcfg' to configure ZC drivers and interfaces"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"n2disk"* ]]; then
-	    install "n2disk"
+	    if test $N2DISK == "OFF"; then
+		install "n2disk"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"ntap"* ]]; then
-	    install "ntap"
+	    if test $NTAP == "OFF"; then
+		install "ntap"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"nscrub"* ]]; then
-	    install "nscrub"
+	    if test $NSCRUB == "OFF"; then
+		install "nscrub"
+	    fi
 	fi
 
 	if [[ $OPTIONS == *"ipt_geofence"* ]]; then
-	    install "ipt_geofence"
+	    if test $GEOFENCE == "OFF"; then
+		install "ipt_geofence"
+	    fi
 	fi
     fi
 
@@ -154,67 +285,121 @@ function installMenu {
 ##############################
 
 function removeMenu {
-    # Create a whiptail checklist
-    OPTIONS=$(whiptail --title "System Setup" --checklist \
-		       "Select the components you want to remove:" 20 78 12 \
-       		       "ntopng" "ntopng web console" OFF \
-		       "nedge"     "ntopng Edge (nEdge)" OFF \
-		       "nprobe" "Network Probe" OFF \
-       		       "cento"  "High speed nProbe (100 Gbit)" OFF \
-       		       "zc"     "PF_RING Zero Copy" OFF \
-		       "n2disk" "Packet to disk" OFF \
-		       "ntap"   "Network tap" OFF \
-       		       "nscrub" "DDoS traffic scrubber" OFF \
-       		       "ipt_geofence" "Network protection" OFF \
-		       3>&1 1>&2 2>&3)
+    refresh_package_list
+
+    NTOPNG=$(is_ntopng_installed)
+    NEDGE=$(is_nedge_installed)
+    CLICKHOUSE=$(is_clickhouse_installed)
+    NPROBE=$(is_nprobe_installed)
+    CENTO=$(is_cento_installed)
+    ZC=$(is_zc_installed)
+    N2DISK=$(is_n2disk_installed)
+    NTAP=$(is_ntap_installed)
+    NSCRUB=$(is_nscrub_installed)
+    GEOFENCE=$(is_ipt_geofence_installed)
+
+    if test -f "/usr/bin/lsb_release"; then
+	# Create a whiptail checklist
+	OPTIONS=$(whiptail --title "Remove Packages" --checklist \
+			   "Deselect the installed packages you would like to remove:" 20 78 12 \
+       			   "ntopng" "ntopng web console" $NTOPNG \
+			   "nedge"     "ntopng Edge (nEdge)" $NEDGE \
+			   "nprobe" "Network Probe" $NPROBE \
+       			   "cento"  "nProbe Cento" $CENTO \
+       			   "zc"     "PF_RING Zero Copy" $ZC  \
+			   "n2disk" "Packet to disk" $N2DISK \
+			   "ntap"   "Network tap" $NTAP \
+       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
+       			   "ipt_geofence" "Network protection" $GEOFENCE \
+			   3>&1 1>&2 2>&3)
+    else
+	# Create a whiptail checklist
+	OPTIONS=$(whiptail --title "Remove Packages" --checklist \
+			   "Deselect the installed packages you would like to remove:" 20 78 12 \
+       			   "ntopng" "ntopng web console" $NTOPNG \
+			   "nprobe" "Network Probe" $NPROBE \
+       			   "cento"  "nProbe Cento" $CENTO \
+       			   "zc"     "PF_RING Zero Copy" $ZC \
+			   "n2disk" "Packet to disk" $N2DISK \
+			   "ntap"   "Network tap" $NTAP \
+       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
+			   3>&1 1>&2 2>&3)
+    fi
 
     EXIT_STATUS=$?
 
     if [ $EXIT_STATUS = 0 ]; then
-	if [[ $OPTIONS == *"ntopng"* ]]; then
-	    remove "ntopng ntopng-data"
-	fi
-
-	if [[ $OPTIONS == *"nedge"* ]]; then
-	    if ! test -f "/usr/bin/lsb_release"; then
-		whiptail --title "Error" --msgbox "This application is not available on this platform" 12 80
-	    else
-		remove "nedge ntopng-data"
+	if test $NTOPNG == "ON"; then
+	    if ! [[ $OPTIONS == *"ntopng"* ]]; then
+		remove "ntopng ntopng-data"
 	    fi
 	fi
 
-	if [[ $OPTIONS == *"nprobe"* ]]; then
-	    remove "nprobe"
+	if test $NEDGE == "ON"; then
+	    if ! [[ $OPTIONS == *"nedge"* ]]; then
+		 if ! test -f "/usr/bin/lsb_release"; then
+		     whiptail --title "Error" --msgbox "This application is not available on this platform" 12 80
+		 else
+		     remove "nedge ntopng-data"
+		 fi
+	    fi
 	fi
 
-	if [[ $OPTIONS == *"cento"* ]]; then
-	    remove "cento"
+	if test $NPROBE == "ON"; then
+	    if ! [[ $OPTIONS == *"nprobe"* ]]; then
+		remove "nprobe"
+	    fi
 	fi
 
-	if [[ $OPTIONS == *"zc"* ]]; then
-	    remove "pfring pfring-dkms"
+	if test $CENTO == "ON"; then
+	    if ! [[ $OPTIONS == *"cento"* ]]; then
+		remove "cento"
+	    fi
 	fi
 
-	if [[ $OPTIONS == *"n2disk"* ]]; then
-	    remove "n2disk"
+	if test $ZC == "ON"; then
+	    if ! [[ $OPTIONS == *"zc"* ]]; then
+		remove "pfring pfring-dkms"
+	    fi
 	fi
 
-	if [[ $OPTIONS == *"ntap"* ]]; then
-	    remove "ntap"
+	if test $N2DISK == "ON"; then
+	    if ! [[ $OPTIONS == *"n2disk"* ]]; then
+		remove "n2disk"
+	    fi
 	fi
 
-	if [[ $OPTIONS == *"nscrub"* ]]; then
-	    remove "nscrub"
+	if test $NTAP == "ON"; then
+	    if ! [[ $OPTIONS == *"ntap"* ]]; then
+		remove "ntap"
+	    fi
 	fi
 
-	if [[ $OPTIONS == *"ipt_geofence"* ]]; then
-	    remove "ipt_geofence"
+	if test $NSCRUB == "ON"; then
+	    if ! [[ $OPTIONS == *"nscrub"* ]]; then
+		remove "nscrub"
+	    fi
+	fi
+
+	if test $GEOFENCE == "ON"; then
+	    if ![[ $OPTIONS == *"ipt_geofence"* ]]; then
+		remove "ipt_geofence"
+	    fi
 	fi
     fi
 
     mainMenu
 }
 
+##############################
+
+function refresh_package_list {
+    if ! test -f "/usr/bin/lsb_release"; then
+	dnf list --installed | cut -d '.' -f 1 > $TMP_FILE
+    else
+	dpkg --get-selections | grep -v deinstall | cut -d ' ' -f 1 > $TMP_FILE
+    fi
+}
 
 ##############################
 
@@ -256,5 +441,26 @@ then
     exit
 fi
 
+# Starting up...
+{
+    for ((i = 0 ; i <= 100 ; i+=25)); do
+	if test $i = 0; then
+	    if ! test -f "/usr/bin/lsb_release"; then
+		dnf install epel-release
+		dnf update
+	    else
+		apt update 3>&2 2>&1 1>&3 > /dev/null
+	    fi
+	else
+	    sleep 0.1
+	fi
+
+        echo $i
+    done
+} | whiptail --gauge "Starting up..." 6 50 0
+
+
 # Starting the main loop
 mainMenu
+
+/bin/rm $TMP_FILE
