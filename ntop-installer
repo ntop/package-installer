@@ -439,8 +439,8 @@ fi
     for ((i = 0 ; i <= 100 ; i+=25)); do
 	if test $i = 0; then
 	    if ! test -f "/usr/bin/lsb_release"; then
-		dnf install epel-release
-		dnf update
+		dnf install -y epel-release
+		dnf update -y
 	    else
 		apt update 3>&2 2>&1 1>&3 > /dev/null || true
 	    fi
