@@ -144,7 +144,7 @@ function is_cento_installed() {
 
 ##############################
 
-function is_zc_installed() {
+function is_pfring_installed() {
     is_installed "pfring"
 }
 
@@ -178,7 +178,7 @@ function installMenu {
     refresh_package_list "OFF"
 
     OPTIONS=$(whiptail --title "Install Packages" --checklist \
-		       "Select the components you want to install: those already installed are hidden" 20 78 12 \
+		       "Select the ntop packages you would like to install: those already installed are hidden." 20 78 12 \
 		       "${cmd[@]}" 3>&1 1>&2 2>&3)
 
     EXIT_STATUS=$?
@@ -214,9 +214,9 @@ function installMenu {
 	    fi
 	fi
 
-	if [[ $OPTIONS == *"zc"* ]]; then
-	    if test $ZC == "OFF"; then
-	    install "pfring pfring-dkms" "Please run 'sudo pf_ringcfg' to configure ZC drivers and interfaces"
+	if [[ $OPTIONS == *"pfring"* ]]; then
+	    if test $PFRING == "OFF"; then
+	    install "pfring pfring-dkms" "Please run 'sudo pf_ringcfg' to configure PFRING drivers and interfaces"
 	    fi
 	fi
 
@@ -254,7 +254,7 @@ function removeMenu {
     refresh_package_list "ON"
 
     OPTIONS=$(whiptail --title "Remove Packages" --checklist \
-		       "Deselect the installed packages you would like to remove:" 20 78 12 \
+		       "Deselect the installed ntop packages you would like to remove: those not installed are hidden" 20 78 12 \
 		       "${cmd[@]}" \
 		       3>&1 1>&2 2>&3)
 
@@ -289,8 +289,8 @@ function removeMenu {
 	    fi
 	fi
 
-	if test $ZC == "ON"; then
-	    if ! [[ $OPTIONS == *"zc"* ]]; then
+	if test $PFRING == "ON"; then
+	    if ! [[ $OPTIONS == *"pfring"* ]]; then
 		remove "pfring pfring-dkms"
 	    fi
 	fi
@@ -337,7 +337,7 @@ function refresh_package_list() {
     CLICKHOUSE=$(is_clickhouse_installed)
     NPROBE=$(is_nprobe_installed)
     CENTO=$(is_cento_installed)
-    ZC=$(is_zc_installed)
+    PFRING=$(is_pfring_installed)
     N2DISK=$(is_n2disk_installed)
     NTAP=$(is_ntap_installed)
     NSCRUB=$(is_nscrub_installed)
@@ -361,8 +361,8 @@ function refresh_package_list() {
 	cmd+=("cento"  "nProbe Cento" $CENTO)
     fi
 
-    if test $ZC  == "$1"; then
-	cmd+=("zc"     "PF_RING ZC" $ZC)
+    if test $PFRING  == "$1"; then
+	cmd+=("pfring"     "PF_RING" $PFRING)
     fi
 
     if test $N2DISK  == "$1"; then
@@ -386,7 +386,7 @@ function refresh_package_list() {
 	    fi
 
 	    if test $GEOFENCE == "$1"; then
-		cmd+=("ipt_geofence" "Geo Fencing Protection" $GEOFENCE)
+		cmd+=("ipt_geofence" "GeoFencing Host Protection" $GEOFENCE)
 	    fi
 	fi
     fi
@@ -442,7 +442,7 @@ fi
 		dnf install epel-release
 		dnf update
 	    else
-		apt update 3>&2 2>&1 1>&3 > /dev/null
+		apt update 3>&2 2>&1 1>&3 > /dev/null || true
 	    fi
 	else
 	    sleep 0.1
