@@ -9,6 +9,8 @@
 set -e
 set -o pipefail
 
+cmd=()
+
 TMP_FILE="/tmp/ntop-installer.tmp"
 
 # Exit function
@@ -173,47 +175,11 @@ function is_ipt_geofence_installed() {
 ##############################
 
 function installMenu {
-    refresh_package_list
+    refresh_package_list "OFF"
 
-    NTOPNG=$(is_ntopng_installed)
-    NEDGE=$(is_nedge_installed)
-    CLICKHOUSE=$(is_clickhouse_installed)
-    NPROBE=$(is_nprobe_installed)
-    CENTO=$(is_cento_installed)
-    ZC=$(is_zc_installed)
-    N2DISK=$(is_n2disk_installed)
-    NTAP=$(is_ntap_installed)
-    NSCRUB=$(is_nscrub_installed)
-    GEOFENCE=$(is_ipt_geofence_installed)
-
-
-    if test -f "/usr/bin/lsb_release"; then
-	OPTIONS=$(whiptail --title "Install Packages" --checklist \
-			   "Select the components you want to install: those marked are already installed" 20 78 12 \
-       			   "ntopng"    "ntopng" $NTOPNG \
-			   "nedge"        "ntopng Edge (nEdge)" $NEDGE \
-       			   "clickhouse" "ClickHouse database" $CLICKHOUSE \
-			   "nprobe" "Network Probe" $NPROBE \
-       			   "cento"  "nProbe Cento" $CENTO \
-       			   "zc"     "PF_RING Zero Copy" $ZC \
-			   "n2disk" "Packet to disk" $N2DISK \
-			   "ntap"   "Network tap" $NTAP \
-       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
-			   "ipt_geofence" "Network protection" $GEOFENCE \
-			   3>&1 1>&2 2>&3)
-    else
-	OPTIONS=$(whiptail --title "Install Packages" --checklist \
-			   "Select the components you want to install: those marked are already installed" 20 78 12 \
-       			   "ntopng"    "ntopng" $NTOPNG \
-       			   "clickhouse" "ClickHouse database" $CLICKHOUSE \
-			   "nprobe" "Network Probe" $NPROBE \
-       			   "cento"  "nProbe Cento" $CENTO \
-       			   "zc"     "PF_RING Zero Copy" $ZC \
-			   "n2disk" "Packet to disk" $N2DISK \
-			   "ntap"   "Network tap" $NTAP \
-       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
-			   3>&1 1>&2 2>&3)
-    fi
+    OPTIONS=$(whiptail --title "Install Packages" --checklist \
+		       "Select the components you want to install: those already installed are hidden" 20 78 12 \
+		       "${cmd[@]}" 3>&1 1>&2 2>&3)
 
     EXIT_STATUS=$?
 
@@ -285,46 +251,12 @@ function installMenu {
 ##############################
 
 function removeMenu {
-    refresh_package_list
+    refresh_package_list "ON"
 
-    NTOPNG=$(is_ntopng_installed)
-    NEDGE=$(is_nedge_installed)
-    CLICKHOUSE=$(is_clickhouse_installed)
-    NPROBE=$(is_nprobe_installed)
-    CENTO=$(is_cento_installed)
-    ZC=$(is_zc_installed)
-    N2DISK=$(is_n2disk_installed)
-    NTAP=$(is_ntap_installed)
-    NSCRUB=$(is_nscrub_installed)
-    GEOFENCE=$(is_ipt_geofence_installed)
-
-    if test -f "/usr/bin/lsb_release"; then
-	# Create a whiptail checklist
-	OPTIONS=$(whiptail --title "Remove Packages" --checklist \
-			   "Deselect the installed packages you would like to remove:" 20 78 12 \
-       			   "ntopng" "ntopng web console" $NTOPNG \
-			   "nedge"     "ntopng Edge (nEdge)" $NEDGE \
-			   "nprobe" "Network Probe" $NPROBE \
-       			   "cento"  "nProbe Cento" $CENTO \
-       			   "zc"     "PF_RING Zero Copy" $ZC  \
-			   "n2disk" "Packet to disk" $N2DISK \
-			   "ntap"   "Network tap" $NTAP \
-       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
-       			   "ipt_geofence" "Network protection" $GEOFENCE \
-			   3>&1 1>&2 2>&3)
-    else
-	# Create a whiptail checklist
-	OPTIONS=$(whiptail --title "Remove Packages" --checklist \
-			   "Deselect the installed packages you would like to remove:" 20 78 12 \
-       			   "ntopng" "ntopng web console" $NTOPNG \
-			   "nprobe" "Network Probe" $NPROBE \
-       			   "cento"  "nProbe Cento" $CENTO \
-       			   "zc"     "PF_RING Zero Copy" $ZC \
-			   "n2disk" "Packet to disk" $N2DISK \
-			   "ntap"   "Network tap" $NTAP \
-       			   "nscrub" "DDoS traffic scrubber" $NSCRUB \
-			   3>&1 1>&2 2>&3)
-    fi
+    OPTIONS=$(whiptail --title "Remove Packages" --checklist \
+		       "Deselect the installed packages you would like to remove:" 20 78 12 \
+		       "${cmd[@]}" \
+		       3>&1 1>&2 2>&3)
 
     EXIT_STATUS=$?
 
@@ -393,12 +325,73 @@ function removeMenu {
 
 ##############################
 
-function refresh_package_list {
+function refresh_package_list() {
     if ! test -f "/usr/bin/lsb_release"; then
 	dnf list --installed | cut -d '.' -f 1 > $TMP_FILE
     else
 	dpkg --get-selections | grep -v deinstall | cut -d ' ' -f 1 > $TMP_FILE
     fi
+
+    NTOPNG=$(is_ntopng_installed)
+    NEDGE=$(is_nedge_installed)
+    CLICKHOUSE=$(is_clickhouse_installed)
+    NPROBE=$(is_nprobe_installed)
+    CENTO=$(is_cento_installed)
+    ZC=$(is_zc_installed)
+    N2DISK=$(is_n2disk_installed)
+    NTAP=$(is_ntap_installed)
+    NSCRUB=$(is_nscrub_installed)
+    GEOFENCE=$(is_ipt_geofence_installed)
+
+    cmd=()
+
+    if test $NTOPNG == "$1"; then
+	cmd+=("ntopng" "ntopng" $NTOPNG)
+    fi
+
+    if test $CLICKHOUSE == "$1"; then
+	cmd+=("clickhouse" "Clickhouse DB" $CLICKHOUSE)
+    fi
+
+    if test $NPROBE == "$1"; then
+	cmd+=("nprobe" "nProbe" $NPROBE)
+    fi
+
+    if test $CENTO == "$1"; then
+	cmd+=("cento"  "nProbe Cento" $CENTO)
+    fi
+
+    if test $ZC  == "$1"; then
+	cmd+=("zc"     "PF_RING ZC" $ZC)
+    fi
+
+    if test $N2DISK  == "$1"; then
+	cmd+=("n2disk" "Network-to-Disk" $N2DISK)
+    fi
+
+    if test $NTAP == "$1"; then
+	cmd+=("ntap"   "Network Tap" $NTAP)
+    fi
+
+    if test $NSCRUB == "$1"; then
+	cmd+=("nscrub" "nScrub DDoS Protection" $NSCRUB)
+    fi
+
+    if test -f "/usr/bin/lsb_release"; then
+	if test $NEDGE == "$1"; then
+	    UBUNTU_RELEASE=`/usr/bin/lsb_release -r  | cut -f 2`
+
+	    if [ "$UBUNTU_RELEASE" == "20.04" ] || [ "$UBUNTU_RELEASE" == "24.04" ]; then
+		cmd+=("nedge"        "ntopng Edge (nEdge)" $NEDGE)
+	    fi
+
+	    if test $GEOFENCE == "$1"; then
+		cmd+=("ipt_geofence" "Geo Fencing Protection" $GEOFENCE)
+	    fi
+	fi
+    fi
+
+    CMD="${cmd[@]}"
 }
 
 ##############################
