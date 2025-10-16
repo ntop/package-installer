@@ -103,8 +103,8 @@ showprogress(){
 ##############################
 
 function is_installed() {
-    NUM=`cat $TMP_FILE | grep $1 | wc -l`
-
+    NUM=`cut -f 1  $TMP_FILE | grep -E "$1$" | wc -l`
+    
     if test "$NUM" -lt 1; then
 	echo "OFF"
     else
