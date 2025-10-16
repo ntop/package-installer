@@ -17,6 +17,7 @@ TMP_FILE="/tmp/ntop-installer.tmp"
 function checkExit {
     {
 	if (whiptail --title "Exit" --yesno "Do you want to exit?" 8 78); then
+	    /bin/rm $TMP_FILE
     	    exit
 	else
     	    mainMenu
@@ -177,7 +178,7 @@ function is_ipt_geofence_installed() {
 function installMenu {
     refresh_package_list "OFF"
 
-    OPTIONS=$(whiptail --title "Install Packages" --checklist \
+    OPTIONS=$(whiptail --title "Install Packages" --nocancel --checklist \
 		       "Select the ntop packages you would like to install: those already installed are hidden." 20 78 12 \
 		       "${cmd[@]}" 3>&1 1>&2 2>&3)
 
@@ -253,7 +254,7 @@ function installMenu {
 function removeMenu {
     refresh_package_list "ON"
 
-    OPTIONS=$(whiptail --title "Remove Packages" --checklist \
+    OPTIONS=$(whiptail --title "Remove Packages" --nocancel --checklist \
 		       "Deselect the installed ntop packages you would like to remove: those not installed are hidden" 20 78 12 \
 		       "${cmd[@]}" \
 		       3>&1 1>&2 2>&3)
