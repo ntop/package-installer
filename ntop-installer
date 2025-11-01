@@ -89,18 +89,6 @@ function remove() {
     fi
 }
 
-
-## The Gauge:  Produce the number stream
-showprogress(){
-    start=$1; end=$2; shortest=$3; longest=$4
-
-    for n in $(seq $start $end); do
-        echo $n
-        pause=$(shuf -i ${shortest:=1}-${longest:=3} -n 1)  # random wait between 1 and 3 seconds
-        sleep $pause
-    done
-}
-
 ##############################
 
 function is_installed() {
@@ -136,7 +124,6 @@ function is_clickhouse_installed() {
 function is_nprobe_installed() {
     is_installed "nprobe"
 }
-
 ##############################
 
 function is_cento_installed() {
@@ -171,6 +158,114 @@ function is_nscrub_installed() {
 
 function is_ipt_geofence_installed() {
     is_installed "ipt_geofence"
+}
+
+##############################
+
+function refresh_package_list() {
+    MODE=$2
+    
+    if ! test -f "/usr/bin/lsb_release"; then
+	dnf list --installed | cut -d '.' -f 1 > $TMP_FILE
+    else
+	dpkg --get-selections | grep -v deinstall | cut -d ' ' -f 1 > $TMP_FILE
+    fi
+
+    NTOPNG=$(is_ntopng_installed)
+    NEDGE=$(is_nedge_installed)
+    CLICKHOUSE=$(is_clickhouse_installed)
+    NPROBE=$(is_nprobe_installed)
+    CENTO=$(is_cento_installed)
+    PFRING=$(is_pfring_installed)
+    N2DISK=$(is_n2disk_installed)
+    NTAP=$(is_ntap_installed)
+    NSCRUB=$(is_nscrub_installed)
+    GEOFENCE=$(is_ipt_geofence_installed)
+
+    cmd=()
+
+    if test $NTOPNG == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("ntopng")
+	else
+	    cmd+=("ntopng" "ntopng" $NTOPNG)
+	fi
+    fi
+
+    if test $CLICKHOUSE == "$1"; then
+	if !test $MODE == "update"; then
+	    # We do not update clickhouse as it will require pwd to be entered
+	    cmd+=("clickhouse" "Clickhouse DB" $CLICKHOUSE)
+	fi
+    fi
+    
+    if test $NPROBE == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("nprobe")
+	else
+	    cmd+=("nprobe" "nProbe" $NPROBE)
+	fi
+    fi
+
+    if test $CENTO == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("cento")
+	else
+	    cmd+=("cento"  "nProbe Cento" $CENTO)
+	fi
+    fi
+
+    if test $PFRING  == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("pfring")
+	else
+	    cmd+=("pfring"     "PF_RING" $PFRING)
+	fi
+    fi
+
+    if test $N2DISK  == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("n2disk")
+	else
+	    cmd+=("n2disk" "Network-to-Disk" $N2DISK)
+	fi
+    fi
+
+    if test $NTAP == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("ntap")
+	else
+	    cmd+=("ntap"   "Network Tap" $NTAP)
+	fi
+    fi
+
+    if test $NSCRUB == "$1"; then
+	if test $MODE == "update"; then
+	    cmd+=("nscrub")
+	else
+	    cmd+=("nscrub" "nScrub DDoS Protection" $NSCRUB)
+	fi
+    fi
+
+    if test -f "/usr/bin/lsb_release"; then
+	if test $NEDGE == "$1"; then
+	    if test $MODE == "update"; then
+		cmd+=("nedge")
+	    else	    		
+		UBUNTU_RELEASE=`/usr/bin/lsb_release -r  | cut -f 2`
+
+		if [ "$UBUNTU_RELEASE" == "20.04" ] || [ "$UBUNTU_RELEASE" == "24.04" ]; then
+		    cmd+=("nedge"        "ntopng Edge (nEdge)" $NEDGE)
+		fi
+
+		if test $GEOFENCE == "$1"; then
+		    cmd+=("ipt_geofence" "GeoFencing Host Protection" $GEOFENCE)
+		fi
+	    fi
+	fi
+    fi
+
+    CMD="${cmd[@]}"
 }
 
 ##############################
@@ -326,73 +421,35 @@ function removeMenu {
 
 ##############################
 
-function refresh_package_list() {
-    if ! test -f "/usr/bin/lsb_release"; then
-	dnf list --installed | cut -d '.' -f 1 > $TMP_FILE
-    else
-	dpkg --get-selections | grep -v deinstall | cut -d ' ' -f 1 > $TMP_FILE
+function updateMenu {
+    refresh_package_list "ON" "update"
+
+    PKGS=${cmd[@]}
+
+    if test -z "$PKGS"; then
+	whiptail --title "Update Report" --msgbox "Nothing to update" 12 80
+    else	
+	# Updating...
+	{
+	    for ((i = 0 ; i <= 100 ; i+=25)); do
+		if test $i = 0; then
+		    if ! test -f "/usr/bin/lsb_release"; then
+			dnf install -y $PKGS
+		    else
+			apt -y install $PKGS 3>&2 2>&1 1>&3 > /dev/null || true
+		    fi
+		else
+		    sleep 0.1
+		fi
+		
+		echo $i
+	    done
+	} | whiptail --gauge "Updating $PKGS" 6 50 0
+
+	whiptail --title "Update Report" --msgbox "$PKGS updated succesfully" 12 80
     fi
 
-    NTOPNG=$(is_ntopng_installed)
-    NEDGE=$(is_nedge_installed)
-    CLICKHOUSE=$(is_clickhouse_installed)
-    NPROBE=$(is_nprobe_installed)
-    CENTO=$(is_cento_installed)
-    PFRING=$(is_pfring_installed)
-    N2DISK=$(is_n2disk_installed)
-    NTAP=$(is_ntap_installed)
-    NSCRUB=$(is_nscrub_installed)
-    GEOFENCE=$(is_ipt_geofence_installed)
-
-    cmd=()
-
-    if test $NTOPNG == "$1"; then
-	cmd+=("ntopng" "ntopng" $NTOPNG)
-    fi
-
-    if test $CLICKHOUSE == "$1"; then
-	cmd+=("clickhouse" "Clickhouse DB" $CLICKHOUSE)
-    fi
-
-    if test $NPROBE == "$1"; then
-	cmd+=("nprobe" "nProbe" $NPROBE)
-    fi
-
-    if test $CENTO == "$1"; then
-	cmd+=("cento"  "nProbe Cento" $CENTO)
-    fi
-
-    if test $PFRING  == "$1"; then
-	cmd+=("pfring"     "PF_RING" $PFRING)
-    fi
-
-    if test $N2DISK  == "$1"; then
-	cmd+=("n2disk" "Network-to-Disk" $N2DISK)
-    fi
-
-    if test $NTAP == "$1"; then
-	cmd+=("ntap"   "Network Tap" $NTAP)
-    fi
-
-    if test $NSCRUB == "$1"; then
-	cmd+=("nscrub" "nScrub DDoS Protection" $NSCRUB)
-    fi
-
-    if test -f "/usr/bin/lsb_release"; then
-	if test $NEDGE == "$1"; then
-	    UBUNTU_RELEASE=`/usr/bin/lsb_release -r  | cut -f 2`
-
-	    if [ "$UBUNTU_RELEASE" == "20.04" ] || [ "$UBUNTU_RELEASE" == "24.04" ]; then
-		cmd+=("nedge"        "ntopng Edge (nEdge)" $NEDGE)
-	    fi
-
-	    if test $GEOFENCE == "$1"; then
-		cmd+=("ipt_geofence" "GeoFencing Host Protection" $GEOFENCE)
-	    fi
-	fi
-    fi
-
-    CMD="${cmd[@]}"
+    mainMenu
 }
 
 ##############################
@@ -404,7 +461,9 @@ function mainMenu {
 	    whiptail --title "Select the operation you want to do" --menu "Choose an option:" 25 78 16 \
          	     "<-- Exit" "" \
          	     "Install" "Install ntop packages." \
-         	     "Remove"  "Remove installed ntop packages." 3>&2 2>&1 1>&3
+         	     "Remove"  "Remove installed ntop packages." \
+		     "Update"  "Update installed ntop packages." \
+		     3>&2 2>&1 1>&3
 	      )
 
 	# Choosing the choice
@@ -417,6 +476,9 @@ function mainMenu {
         	;;
             "Remove")
                 removeMenu
+        	;;
+            "Update")
+                updateMenu
         	;;
 	esac
 }
