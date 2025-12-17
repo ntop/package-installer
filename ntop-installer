@@ -192,13 +192,13 @@ function refresh_package_list() {
 	fi
     fi
 
-    if test $CLICKHOUSE == "$1"; then
-	if !test $MODE == "update"; then
+    if test "$CLICKHOUSE" == "$1"; then
+	if ! test $MODE == "update"; then
 	    # We do not update clickhouse as it will require pwd to be entered
 	    cmd+=("clickhouse" "Clickhouse DB" $CLICKHOUSE)
 	fi
     fi
-    
+
     if test $NPROBE == "$1"; then
 	if test $MODE == "update"; then
 	    cmd+=("nprobe")
@@ -271,7 +271,7 @@ function refresh_package_list() {
 ##############################
 
 function installMenu {
-    refresh_package_list "OFF"
+    refresh_package_list "OFF" "install"
 
     OPTIONS=$(whiptail --title "Install Packages" --nocancel --checklist \
 		       "Select the ntop packages you would like to install: those already installed are hidden." 20 78 12 \
@@ -347,7 +347,7 @@ function installMenu {
 ##############################
 
 function removeMenu {
-    refresh_package_list "ON"
+    refresh_package_list "ON" "remove"
 
     OPTIONS=$(whiptail --title "Remove Packages" --nocancel --checklist \
 		       "Deselect the installed ntop packages you would like to remove: those not installed are hidden" 20 78 12 \
