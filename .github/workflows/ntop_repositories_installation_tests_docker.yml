@@ -1,0 +1,37 @@
+name: Test ntop repository installer on Linux (Docker matrix)
+
+# Runs ntop_repositories_tests_docker_matrix.sh
+#
+# Two variants, matching how the script itself is used locally:
+#   - plain run: verifies repo setup + ntop-installer availability only
+#   - --install-packages: also actually installs nprobe/ntopng from the
+#     freshly configured repo and requires that to succeed too,
+#
+on:
+  workflow_dispatch:
+
+jobs:
+  docker-matrix:
+    name: Docker matrix (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    # The full matrix inside ntop_repositories_tests_docker_matrix.sh runs
+    # ~30 check_image/check_idempotency cases sequentially (pulling ~10
+    # distro images along the way); --install-packages adds a real
+    # nprobe/ntopng install on top of each one, so give it real headroom
+    # instead of inheriting the default 6h job timeout.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - args: ""
+            label: "repo setup only"
+          - args: "--install-packages"
+            label: "+ install nprobe/ntopng"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run ntop_repositories_tests_docker_matrix.sh ${{ matrix.args }}
+        run: |
+          chmod +x ntop_repositories_installation.sh ntop_repositories_tests_docker_matrix.sh
+          ./ntop_repositories_tests_docker_matrix.sh ${{ matrix.args }}
