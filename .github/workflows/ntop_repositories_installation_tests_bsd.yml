@@ -1,0 +1,125 @@
+name: Test ntop repository installer on BSD
+
+# There is no OpenBSD or NetBSD package tree to
+# test against, so this workflow's real coverage is FreeBSD only; OpenBSD is
+# included solely as a cheap negative test that the script refuses cleanly
+# on a BSD it doesn't support, rather than behaving oddly.
+#
+# NOT covered here: pfSense and OPNsense. vmactions only ships plain
+# upstream BSD VM images, not the appliance-specific pfSense/OPNsense
+# builds.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  freebsd:
+    name: FreeBSD ${{ matrix.release }} / --${{ matrix.channel }}
+    runs-on: ubuntu-latest
+    # vmactions/freebsd-vm has had periods of real flakiness upstream
+    # (boot hangs reported to take hours to time out) - bound the worst case
+    # instead of inheriting the default 6h job timeout.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Only releases currently published by vmactions/freebsd-vm
+        # (https://github.com/vmactions/freebsd-vm#all-the-supported-releases-are-here)
+        # that also fall inside the majors ntop_repositories_installation.sh
+        # itself accepts (14/15/16, see setup_freebsd_family()). 16.x isn't
+        # published by vmactions yet - add it here once it is.
+        release: ["14.4", "15.1"]
+        channel: ["dev", "stable"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run installer on FreeBSD ${{ matrix.release }} (--${{ matrix.channel }})
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          copyback: false
+          release: ${{ matrix.release }}
+          prepare: |
+            # Pre-bootstrap pkg(8) non-interactively so the installer's own
+            # `pkg add` doesn't sit waiting on a first-run y/N prompt.
+            env ASSUME_ALWAYS_YES=yes pkg bootstrap -f || true
+          run: |
+            echo "Working Directory: $(pwd)"
+            echo "User.............: $(whoami)"
+            echo "FreeBSD Version..: $(freebsd-version)"
+            uname -a
+
+            echo "=== First run: --${{ matrix.channel }} ==="
+            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} > install-1.log 2>&1
+            rc=$?
+            cat install-1.log
+            echo "exit code: $rc"
+            if [ "$rc" -ne 0 ]; then
+              echo "FAIL: script did not exit 0"
+              exit 1
+            fi
+
+            if ! grep -q "platform=FreeBSD" install-1.log; then
+              echo "FAIL: platform=FreeBSD was not detected"
+              exit 1
+            fi
+            if ! grep -q "variant=freebsd" install-1.log; then
+              echo "FAIL: variant=freebsd was not detected (plain FreeBSD misidentified as pfSense/OPNsense?)"
+              exit 1
+            fi
+            # Only "dev" is published for this platform - both --dev and
+            # --stable must end up here, --stable via the documented
+            # fallback-and-report behavior.
+            if ! grep -q "Selected channel: dev" install-1.log; then
+              echo "FAIL: did not end up on the dev channel (the only one that exists for FreeBSD)"
+              exit 1
+            fi
+            if [ "${{ matrix.channel }}" = "stable" ]; then
+              if ! grep -q "Only the 'dev' (nightly) channel is published" install-1.log; then
+                echo "FAIL: expected the stable-not-available report when --stable was requested"
+                exit 1
+              fi
+            fi
+
+            if [ ! -f /usr/local/etc/pkg/repos/ntop.conf ]; then
+              echo "FAIL: /usr/local/etc/pkg/repos/ntop.conf was not created - repo was not really configured"
+              exit 1
+            fi
+            echo "PASS: repo file present"
+
+            echo "=== Second run: idempotency check ==="
+            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} > install-2.log 2>&1
+            rc2=$?
+            cat install-2.log
+            if [ "$rc2" -ne 0 ]; then
+              echo "FAIL: second run did not exit 0"
+              exit 1
+            fi
+            if ! grep -q "already configured" install-2.log; then
+              echo "FAIL: second run did not report the repo as already configured (re-added it instead?)"
+              exit 1
+            fi
+
+            echo "PASS: FreeBSD ${{ matrix.release }} / --${{ matrix.channel }}"
+
+  reject-unsupported-bsd:
+    name: Refuses cleanly on OpenBSD (no ntop packages published there)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Confirm the installer refuses OpenBSD instead of misbehaving
+        uses: vmactions/openbsd-vm@v1
+        with:
+          usesh: true
+          copyback: false
+          release: "7.5"
+          run: |
+            echo "OpenBSD Version..: $(uname -a)"
+
+            if sh ./ntop_repositories_installation.sh --dev; then
+              echo "FAIL: installer unexpectedly succeeded on an unsupported BSD"
+              exit 1
+            fi
+            echo "PASS: installer correctly refused to run on OpenBSD"
