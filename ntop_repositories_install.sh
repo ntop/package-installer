@@ -2,6 +2,8 @@
 # ntop one-shot repository installer bootstrap
 #
 # Usage:
+#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sudo sh -s -- --dev
+#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sudo NTOP_CHANNEL=stable sh
 #   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sh -s -- --dev
 #   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sh -s -- --channel=stable
 #
@@ -76,11 +78,15 @@ die()  { printf '%s[ntop-repo]%s %sERROR: %s%s\n' "$BOLD" "$NORMAL" "$RED" "$1" 
 # "curl | sh" one-liner style without forcing the user to type sudo first.
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        if command -v sudo >/dev/null 2>&1; then
-            log "Root privileges are required, re-running with sudo..."
-            exec sudo -E sh "$0" "$@"
+        if [ -f "$0" ] && [ -r "$0" ]; then
+            if command -v sudo >/dev/null 2>&1; then
+                log "Root privileges are required, re-running with sudo..."
+                exec sudo -E sh "$0" "$@"
+            else
+                die "This script must be run as root (sudo not found)."
+            fi
         else
-            die "This script must be run as root (sudo not found)."
+            die "Root privileges are required, and this script can't re-exec itself with sudo when run via a pipe (no real file to re-run). Prefix the whole pipeline with sudo instead, e.g.: curl -fsSL <script-url> | sudo sh -s -- --dev   (or download the script first and run it directly)."
         fi
     fi
 }
@@ -104,7 +110,7 @@ parse_args() {
             --log)         VERBOSE=1 ;;
             -h|--help)
                 cat <<EOF
-Usage: $0 --dev|--stable|--channel=dev|stable [--log]
+Usage: ntop_repositories_install.sh --dev|--stable|--channel=dev|stable [--log]
 
   --dev            install nightly/development builds
   --stable         install stable builds
