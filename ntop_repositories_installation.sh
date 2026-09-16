@@ -214,6 +214,13 @@ detect_linux_os() {
     fi
 
     ok "Detected: platform=Linux ID=$DISTRO_ID VERSION_ID=$DISTRO_VERSION CODENAME=$DISTRO_CODENAME RaspberryPi=$IS_RASPBERRY"
+
+    if [ "$IS_RASPBERRY" -eq 1 ]; then
+        pi_arch="$(dpkg --print-architecture 2>/dev/null || echo unknown)"
+        if [ "$pi_arch" != "arm64" ]; then
+            die "This is a 32-bit Raspberry Pi OS install (dpkg architecture: '$pi_arch'), but ntop's Raspberry Pi packages are only published for arm64/64-bit (see https://www.ntop.org/support/documentation/software-installation/). The repo may already be (or would appear to be) successfully configured, but packages like nprobe/ntopng are not actually installable through it on this system. Use a 64-bit Raspberry Pi OS install, or check https://packages.ntop.org/RaspberryPI/ for any armhf-specific alternative."
+        fi
+    fi
 }
 
 # FreeBSD, pfSense and OPNsense all report kernel "FreeBSD" and often carry
@@ -428,13 +435,15 @@ setup_raspbian() {
     # index page) use a self-contained bootstrap .deb here - the same
     # pattern as Debian/Ubuntu, NOT the older "echo deb-lines into
     # sources.list.d" approach (which pointed at apt.ntop.org, a domain that
-    # no longer resolves).
+    # no longer resolves). (The arm64-only architecture check for this
+    # platform lives in detect_linux_os(), since it must fire even when the
+    # repo is already configured and this function never runs again.)
     #
     # Per https://www.ntop.org/support/documentation/software-installation/
     # only ONE build is currently documented for Raspbian/rPi OS - there is
     # no separate stable tab/URL at all (unlike Debian/Ubuntu/RHEL family).
     if [ "$CHANNEL" = "stable" ]; then
-        log "Only the 'dev' (nightly) build is currently documented for Raspbian/rPi OS (see https://www.ntop.org/support/documentation/software-installation/). Using it instead of 'stable'."
+        ok "Only the 'dev' (nightly) build is currently documented for Raspbian/rPi OS (see https://www.ntop.org/support/documentation/software-installation/). Using it instead of 'stable'."
     fi
     setup_apt_common_tools
 
@@ -560,7 +569,6 @@ setup_freebsd_family() {
 # ----------------------------------------------------------------------------
 
 finish() {
-    skip_apt_refresh="${1:-0}"
     install_cmd=""
 
     if [ "$PLATFORM_FAMILY" = "freebsd" ]; then
@@ -569,12 +577,12 @@ finish() {
             log "Note: $FREEBSD_VARIANT ships a subset of the FreeBSD packages (e.g. Kafka support is not available). See https://packages.ntop.org/FreeBSD/ for details."
         fi
     elif need_cmd apt-get; then
-        if [ "$skip_apt_refresh" -eq 1 ]; then
-            log "The '$CHANNEL' channel was already installed - skipping apt index refresh."
-        else
-            apt-get clean all
-            apt-get update -qq
-        fi
+        # Always refresh, even when the repo config was already present:
+        # "the repo file/package is there" does NOT guarantee the local apt
+        # index cache is actually populated/fresh (stale after a reboot, a
+        # cleared cache, time passing, etc.).
+        apt-get clean all
+        apt-get update -qq
         install_cmd="apt install ntopng nprobe"
     elif need_cmd dnf; then
         install_cmd="dnf install ntopng nprobe"
@@ -622,7 +630,6 @@ main() {
         case "$INSTALLED_CHANNEL" in
             "$CHANNEL")
                 ok "ntop repository already configured with the '$CHANNEL' channel, skipping repository setup."
-                skip_apt_refresh=1
                 ;;
             unknown)
                 die "ntop repository already configured, but this script cannot determine which channel (dev/stable) it points to. Skipping repository setup; remove the existing ntop repo files manually first if you need to switch to '$CHANNEL'."
@@ -631,7 +638,7 @@ main() {
                 die "ntop repository already configured, but with the '$INSTALLED_CHANNEL' channel, NOT the requested '$CHANNEL' channel. Skipping repository setup. If you want to switch channel, please look at https://www.ntop.org/faq/how-can-i-switch-from-stable-to-dev-builds-or-vice-versa/"
                 ;;
         esac
-        finish "$skip_apt_refresh"
+        finish
         return
     fi
 
