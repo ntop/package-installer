@@ -50,7 +50,7 @@ jobs:
             uname -a
 
             echo "=== First run: --${{ matrix.channel }} ==="
-            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} > install-1.log 2>&1
+            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} --log > install-1.log 2>&1
             rc=$?
             cat install-1.log
             echo "exit code: $rc"
@@ -88,7 +88,7 @@ jobs:
             echo "PASS: repo file present"
 
             echo "=== Second run: idempotency check ==="
-            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} > install-2.log 2>&1
+            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} --log > install-2.log 2>&1
             rc2=$?
             cat install-2.log
             if [ "$rc2" -ne 0 ]; then

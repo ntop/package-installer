@@ -55,7 +55,11 @@ check_image() {
     [ "$INSTALL_PACKAGES" = "1" ] && echo "  (+ will attempt: install nprobe ntopng)"
     echo "=================================================================="
 
-    cmd="sh /ntop_repositories_installation.sh $args"
+    # --log is always added on top of whatever channel/etc args the test
+    # itself specifies: CI needs the full diagnostic detail (e.g. "Selected
+    # channel: ..."), which is intentionally quiet by default for real
+    # end-user runs otherwise.
+    cmd="sh /ntop_repositories_installation.sh $args --log"
     if [ "$INSTALL_PACKAGES" = "1" ]; then
         # Try whichever package manager ntop_repositories_installation.sh itself would have used.
         # DEBIAN_FRONTEND=noninteractive avoids hanging on any debconf
@@ -111,7 +115,7 @@ check_idempotency() {
     echo "=================================================================="
 
     out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_installation.sh:ro" "$image" \
-        sh -c "sh /ntop_repositories_installation.sh $args && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $args" 2>&1)"
+        sh -c "sh /ntop_repositories_installation.sh $args --log && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $args --log" 2>&1)"
     rc=$?
     echo "$out"
     echo "--- exit code: $rc ---"
@@ -140,7 +144,7 @@ check_channel_switch_dies() {
     echo "=================================================================="
 
     out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_installation.sh:ro" "$image" \
-        sh -c "sh /ntop_repositories_installation.sh $first_args && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $second_args" 2>&1)"
+        sh -c "sh /ntop_repositories_installation.sh $first_args --log && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $second_args --log" 2>&1)"
     rc=$?
     echo "$out"
     echo "--- final exit code: $rc ---"

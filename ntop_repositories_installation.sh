@@ -241,7 +241,7 @@ detect_freebsd_os() {
         FREEBSD_VARIANT="freebsd"
     fi
 
-    log "Detected: platform=FreeBSD variant=$FREEBSD_VARIANT release=$FREEBSD_RELEASE major=$FREEBSD_MAJOR arch=$ARCH"
+    ok "Detected: platform=FreeBSD variant=$FREEBSD_VARIANT release=$FREEBSD_RELEASE major=$FREEBSD_MAJOR arch=$ARCH"
 }
 
 # ----------------------------------------------------------------------------
