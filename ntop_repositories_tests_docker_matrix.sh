@@ -126,6 +126,35 @@ check_idempotency() {
     echo
 }
 
+# check_channel_switch_dies IMAGE FIRST_ARGS SECOND_ARGS
+# Runs ntop_repositories_installation.sh once with FIRST_ARGS, then again with
+# SECOND_ARGS in the SAME container. Since the repo is already configured for
+# a DIFFERENT channel than the second run asks for, the second run must now
+# die() (non-zero exit + a channel-mismatch message) rather than silently
+# skip and exit 0 - not applicable to the FreeBSD family, where only one
+# channel ever exists so this code path is unreachable by design.
+check_channel_switch_dies() {
+    image="$1"; first_args="$2"; second_args="$3"
+    echo "=================================================================="
+    echo "CHANNEL SWITCH: $image   $first_args -> $second_args (2nd run must die)"
+    echo "=================================================================="
+
+    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_installation.sh:ro" "$image" \
+        sh -c "sh /ntop_repositories_installation.sh $first_args && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $second_args" 2>&1)"
+    rc=$?
+    echo "$out"
+    echo "--- final exit code: $rc ---"
+
+    second_run="$(echo "$out" | sed -n '/===SECOND-RUN===/,$p')"
+    if [ "$rc" -ne 0 ] && echo "$second_run" | grep -qF "NOT the requested"; then
+        echo "RESULT: PASS"; PASS=$((PASS+1))
+    else
+        echo "MISSING: expected the second run to die() with a channel-mismatch message"
+        echo "RESULT: FAIL"; FAIL=$((FAIL+1))
+    fi
+    echo
+}
+
 # --- Debian/Ubuntu family ---
 check_image "ubuntu:22.04" "--dev"    "Selected channel: dev"     "ntop repository added successfully"
 check_image "ubuntu:22.04" "--stable" "Selected channel: stable"  "ntop repository added successfully"
@@ -172,6 +201,11 @@ check_idempotency "ubuntu:24.04" "--dev"
 check_idempotency "ubuntu:24.04" "--stable"
 check_idempotency "ubuntu:26.04" "--dev"
 check_idempotency "ubuntu:26.04" "--stable"
+
+# --- Channel switch must now die() (dev<->stable), not silently skip ---
+check_channel_switch_dies "ubuntu:24.04" "--dev"    "--stable"
+check_channel_switch_dies "ubuntu:24.04" "--stable" "--dev"
+check_channel_switch_dies "almalinux:9"  "--dev"    "--stable"
 
 echo "=================================================================="
 echo "SUMMARY: $PASS passed, $FAIL failed"

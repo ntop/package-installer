@@ -1,11 +1,9 @@
 #!/bin/sh
-# ntop one-shot installer bootstrap
-# https://github.com/ntop/package-installer/issues/3
+# ntop one-shot repository installer bootstrap
 #
 # Usage:
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_installation.sh | sh
+#   curl -fsSL https://packages.ntop.org/ntop_repositories_installation.sh | sh -s -- --dev
 #   curl -fsSL https://packages.ntop.org/ntop_repositories_installation.sh | sh -s -- --channel=stable
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_installation.sh | sh -s -- --stable --run-wizard
 #
 # What it does:
 #   1. Detects the platform: Linux distribution/version, or FreeBSD family
@@ -14,8 +12,10 @@
 #      which channel - if it's already configured for a DIFFERENT channel
 #      than the one requested, this is reported explicitly and the existing
 #      repo is left untouched (no double/conflicting configuration)
-#   3. Asks the user (or reads --channel/NTOP_CHANNEL) whether to use
-#      the "dev" (nightly) or "stable" repository
+#   3. Requires the channel to be specified explicitly via --dev/--stable/
+#      --channel=.../NTOP_CHANNEL - there is no default and no interactive
+#      prompt; if none is given, the script prints a message and exits
+#      without doing anything
 #      -> on FreeBSD/pfSense/OPNsense only "dev" is published
 #         (see https://packages.ntop.org/FreeBSD/); if "stable" was
 #         requested there, this is reported and "dev" is used instead
@@ -23,12 +23,14 @@
 #        - APT/YUM/DNF, following https://packages.ntop.org/ , on Linux
 #        - pkg(8), following https://packages.ntop.org/FreeBSD/ , on
 #          FreeBSD/pfSense/OPNsense
-#   5. On Linux, installs `ntop-installer`, the existing textual wizard
-#      shipped by this repository, so the user can pick the actual
-#      packages. The wizard is only launched automatically if
-#      --run-wizard is passed (default: no).
-#      -> no such wizard is published for FreeBSD/pfSense/OPNsense; if
-#         --run-wizard was requested there, this is reported and ignored
+#      On EL10 (RHEL/Rocky/AlmaLinux/CentOS), redis is also installed via
+#      remi, since it was dropped from EL10's own base repos upstream.
+#   5. Prints a final message pointing the user at how to install whatever
+#      packages they actually want (e.g. ntopng, nprobe) themselves.
+#
+# This script ONLY sets up the repository (and, where needed, a supporting
+# dependency like redis) - it does not install, launch, or know anything
+# about any particular ntop package or tool itself.
 #
 # This script handles Linux and the FreeBSD family (FreeBSD, pfSense,
 # OPNsense). macOS, Windows and Docker still ship GUI/manual installers
@@ -52,9 +54,23 @@ if [ -t 1 ]; then
     GREEN="$(printf '\033[32m')"
 fi
 
-log()  { printf '%s[ntop-installer]%s %s\n' "$BOLD" "$NORMAL" "$1"; }
-ok()   { printf '%s[ntop-installer]%s %s%s%s\n' "$BOLD" "$NORMAL" "$GREEN" "$1" "$NORMAL"; }
-die()  { printf '%s[ntop-installer]%s %sERROR: %s%s\n' "$BOLD" "$NORMAL" "$RED" "$1" "$NORMAL" >&2; exit 1; }
+# By default only ok()/die() messages are printed. log() (verbose/progress
+# detail) is silent unless --log was passed - see the early scan for it in
+# main(), which runs before anything else so verbosity is in effect from
+# the very first possible log() call (e.g. inside require_root()).
+VERBOSE=0
+
+log() {
+    # Written as an `if` (not `[ ... ] && printf ...`) plus an explicit
+    # `return 0` so this is always successful under `set -e`, regardless of
+    # whether VERBOSE is on - a log() call must never itself abort the script.
+    if [ "$VERBOSE" -eq 1 ]; then
+        printf '%s[ntop-repo]%s %s\n' "$BOLD" "$NORMAL" "$1"
+    fi
+    return 0
+}
+ok()   { printf '%s[ntop-repo]%s %s%s%s\n' "$BOLD" "$NORMAL" "$GREEN" "$1" "$NORMAL"; }
+die()  { printf '%s[ntop-repo]%s %sERROR: %s%s\n' "$BOLD" "$NORMAL" "$RED" "$1" "$NORMAL" >&2; exit 1; }
 
 # Re-exec under sudo if not root, so the script works with the documented
 # "curl | sh" one-liner style without forcing the user to type sudo first.
@@ -78,8 +94,6 @@ need_cmd() {
 # ----------------------------------------------------------------------------
 
 CHANNEL=""
-RUN_WIZARD=0
-RUN_WIZARD_EXPLICIT=0
 
 parse_args() {
     for arg in "$@"; do
@@ -87,74 +101,43 @@ parse_args() {
             --channel=*)   CHANNEL="${arg#*=}" ;;
             --dev)         CHANNEL="dev" ;;
             --stable)      CHANNEL="stable" ;;
-            --run-wizard)  RUN_WIZARD=1; RUN_WIZARD_EXPLICIT=1 ;;
-            --no-wizard)   RUN_WIZARD=0; RUN_WIZARD_EXPLICIT=1 ;;
+            --log)         VERBOSE=1 ;;
             -h|--help)
                 cat <<EOF
-Usage: $0 [--dev|--stable|--channel=dev|stable] [--run-wizard]
+Usage: $0 --dev|--stable|--channel=dev|stable [--log]
 
   --dev            install nightly/development builds
   --stable         install stable builds
-  (no option)      you will be asked interactively
+  --log            verbose logging (default: only success/error messages
+                   are printed)
 
-  --run-wizard     launch the ntop-installer package-selection wizard
-                   at the end (default: do NOT run it)
-  --no-wizard      explicitly skip launching the wizard (default)
+The channel must be specified explicitly - there is no default and this
+script never prompts interactively for it. Environment variable
+NTOP_CHANNEL is also honored (useful for non-interactive / curl | sh
+usage).
 
-Environment variables NTOP_CHANNEL and NTOP_RUN_WIZARD (1/0) are also
-honored (useful for non-interactive / curl | sh usage).
+This script only sets up the ntop package repository (and, on EL10, the
+redis dependency it needs) - it does not install or launch any ntop
+package itself. Use your package manager afterward for that, e.g.:
+'apt install ntopng nprobe' or 'dnf install ntopng nprobe' or
+'pkg install ntopng nprobe', depending on your platform.
 
-On FreeBSD/pfSense/OPNsense only the 'dev' channel exists and there is
-no wizard: --stable and --run-wizard are reported and ignored there.
+On FreeBSD/pfSense/OPNsense only the 'dev' channel exists: --stable is
+reported and 'dev' is used instead there.
 EOF
                 exit 0
                 ;;
         esac
     done
 
-    if [ "$RUN_WIZARD_EXPLICIT" -eq 0 ] && [ -n "${NTOP_RUN_WIZARD:-}" ]; then
-        case "$NTOP_RUN_WIZARD" in
-            1|true|yes) RUN_WIZARD=1 ;;
-            0|false|no) RUN_WIZARD=0 ;;
-        esac
-    fi
-
     if [ -z "$CHANNEL" ] && [ -n "${NTOP_CHANNEL:-}" ]; then
         CHANNEL="$NTOP_CHANNEL"
     fi
 
-    # PLATFORM_FAMILY is set by detect_os(), which must run before parse_args().
-    if [ "$PLATFORM_FAMILY" = "freebsd" ]; then
-        # Only the dev/nightly channel is published for FreeBSD/pfSense/OPNsense
-        # (see https://packages.ntop.org/FreeBSD/ - there is no *-stable
-        # counterpart there today). Report it explicitly if the user asked
-        # for stable, rather than silently ignoring the request.
-        if [ "$CHANNEL" = "stable" ]; then
-            log "Only the 'dev' (nightly) channel is published for FreeBSD/pfSense/OPNsense; 'stable' does not exist there yet (see https://packages.ntop.org/FreeBSD/). Using 'dev' instead."
-        fi
-        CHANNEL="dev"
-
-        # There is no ntop-installer-style wizard published for this platform
-        # either. Report it explicitly if the user asked to run one.
-        if [ "$RUN_WIZARD" -eq 1 ]; then
-            log "No package-selection wizard is published for FreeBSD/pfSense/OPNsense (ntop-installer is a Linux-only package). Ignoring --run-wizard/NTOP_RUN_WIZARD."
-            RUN_WIZARD=0
-        fi
-    elif [ -z "$CHANNEL" ]; then
-        if [ -t 0 ]; then
-            printf '%sWhich ntop package channel do you want to use?%s\n' "$BOLD" "$NORMAL"
-            printf '  1) stable  (recommended for production)\n'
-            printf '  2) dev     (nightly builds, latest features)\n'
-            printf 'Choice [1]: '
-            read -r choice </dev/tty
-            case "$choice" in
-                2) CHANNEL="dev" ;;
-                *) CHANNEL="stable" ;;
-            esac
-        else
-            log "No TTY and no --channel/--dev/--stable/NTOP_CHANNEL given: defaulting to 'stable'."
-            CHANNEL="stable"
-        fi
+    # No default and no interactive prompt: the channel must be given
+    # explicitly, every time, on every platform.
+    if [ -z "$CHANNEL" ]; then
+        die "No channel specified. Pass --dev or --stable (or --channel=dev|stable, or set NTOP_CHANNEL). Run with --help for details."
     fi
 
     case "$CHANNEL" in
@@ -162,14 +145,17 @@ EOF
         *) die "Invalid channel '$CHANNEL' (expected 'dev' or 'stable')." ;;
     esac
 
-    log "Selected channel: $CHANNEL"
-    if [ "$PLATFORM_FAMILY" = "freebsd" ]; then
-        log "No package-selection wizard is available on this platform (see https://packages.ntop.org/FreeBSD/)."
-    elif [ "$RUN_WIZARD" -eq 1 ]; then
-        log "The ntop-installer wizard WILL be launched at the end (--run-wizard)."
-    else
-        log "The ntop-installer wizard will NOT be launched automatically (default). Use --run-wizard to change this."
+    # PLATFORM_FAMILY is set by detect_os(), which must run before parse_args().
+    if [ "$PLATFORM_FAMILY" = "freebsd" ] && [ "$CHANNEL" = "stable" ]; then
+        # Only the dev/nightly channel is published for FreeBSD/pfSense/OPNsense
+        # (see https://packages.ntop.org/FreeBSD/ - there is no *-stable
+        # counterpart there today). Report it explicitly rather than silently
+        # ignoring the request.
+        log "Only the 'dev' (nightly) channel is published for FreeBSD/pfSense/OPNsense; 'stable' does not exist there yet (see https://packages.ntop.org/FreeBSD/). Using 'dev' instead."
+        CHANNEL="dev"
     fi
+
+    log "Selected channel: $CHANNEL"
 }
 
 # ----------------------------------------------------------------------------
@@ -227,7 +213,7 @@ detect_linux_os() {
         IS_RASPBERRY=1
     fi
 
-    log "Detected: platform=Linux ID=$DISTRO_ID VERSION_ID=$DISTRO_VERSION CODENAME=$DISTRO_CODENAME RaspberryPi=$IS_RASPBERRY"
+    ok "Detected: platform=Linux ID=$DISTRO_ID VERSION_ID=$DISTRO_VERSION CODENAME=$DISTRO_CODENAME RaspberryPi=$IS_RASPBERRY"
 }
 
 # FreeBSD, pfSense and OPNsense all report kernel "FreeBSD" and often carry
@@ -350,7 +336,7 @@ add_contrib_if_missing() {
             log "'contrib' component already present in $legacy"
         else
             log "Enabling 'contrib' component in $legacy"
-            cp "$legacy" "${legacy}.ntop-installer.bak"
+            cp "$legacy" "${legacy}.ntop-repo.bak"
             sed -i -E '/^deb(-src)? /{/contrib/!s/$/ contrib/}' "$legacy"
             touched_any=1
         fi
@@ -364,7 +350,7 @@ add_contrib_if_missing() {
             log "'contrib' component already present in $f"
         else
             log "Enabling 'contrib' component in $f"
-            cp "$f" "${f}.ntop-installer.bak"
+            cp "$f" "${f}.ntop-repo.bak"
             sed -i -E 's/^(Components:.*)$/\1 contrib/' "$f"
             touched_any=1
         fi
@@ -442,8 +428,7 @@ setup_raspbian() {
     # index page) use a self-contained bootstrap .deb here - the same
     # pattern as Debian/Ubuntu, NOT the older "echo deb-lines into
     # sources.list.d" approach (which pointed at apt.ntop.org, a domain that
-    # no longer resolves). ntop-installer ships bundled inside this .deb
-    # too, same as Debian/Ubuntu, so no separate install step is needed.
+    # no longer resolves).
     #
     # Per https://www.ntop.org/support/documentation/software-installation/
     # only ONE build is currently documented for Raspbian/rPi OS - there is
@@ -529,8 +514,8 @@ setup_rhel_like() {
     if [ "$major" = "10" ]; then
         # New as of the current docs: redis was dropped from EL10's base
         # repos by the distro maintainers and must be installed manually via
-        # remi, or later `dnf install ntop-installer` / ntopng-related
-        # installs can fail on the missing redis dependency.
+        # remi, or package installs the user does later (e.g. ntopng) can
+        # fail on the missing redis dependency.
         log "EL10: redis was removed from base repos upstream - installing it via remi, per current docs."
         dnf install -y https://rpms.remirepo.net/enterprise/remi-release-10.rpm \
             || die "Could not install remi-release-10.rpm (needed for redis on EL10)."
@@ -567,67 +552,41 @@ setup_freebsd_family() {
     pkg add "$url" || die "Could not add the ntop repository from $url"
 }
 
-report_freebsd_next_steps() {
-    ok "ntop repository ready for $FREEBSD_VARIANT (FreeBSD $FREEBSD_MAJOR, $ARCH, channel: dev)."
-    log "No package-selection wizard is published for FreeBSD/pfSense/OPNsense (ntop-installer is Linux-only)."
-    log "Install the tools you need directly, e.g.: pkg install ntopng nprobe"
-    if [ "$FREEBSD_VARIANT" != "freebsd" ]; then
-        log "Note: $FREEBSD_VARIANT ships a subset of the FreeBSD packages (e.g. Kafka support is not available). See https://packages.ntop.org/FreeBSD/ for details."
-    fi
-}
-
 # ----------------------------------------------------------------------------
-# Final step: install the wizard already provided by this repo, and launch
-# it only if the user opted in.
+# Final step: refresh the apt index where relevant (dnf/yum/pkg refresh on
+# their own), then tell the user what to do next. This script only ever
+# sets up the repository (and, on EL10, redis) - it never installs or
+# launches any ntop package/tool itself.
 # ----------------------------------------------------------------------------
 
-install_and_maybe_run_wizard() {
-    if need_cmd apt-get; then
-        # On Debian/Ubuntu/Raspbian, ntop-installer ships bundled INSIDE
-        # apt-ntop(-stable).deb (already installed earlier) - there is no
-        # separate apt package by that name, so nothing more to install here.
-        # We do still refresh the package index so ntopng/nprobe/etc. show
-        # up for whatever the user installs next.
-        apt-get clean all
-        apt-get update -qq
-    elif need_cmd dnf || need_cmd yum; then
-        # On RHEL family, ntop-installer is documented (as of
-        # https://www.ntop.org/support/documentation/software-installation/,
-        # with no stable-channel caveat mentioned there) as a separate
-        # installable package - but empirically (confirmed via real dnf
-        # calls across the RHEL family) it is NOT actually present on the
-        # stable channel, for any distro/major. Live testing takes
-        # precedence over docs that don't mention the gap, so we don't
-        # attempt a call we're confident will fail; the repo itself was
-        # still configured successfully, so this is reported rather than
-        # treated as fatal.
-        if [ "$CHANNEL" = "stable" ]; then
-            ok "ntop repository configured (channel: stable)."
-            log "'ntop-installer' is not available via dnf/yum on the RHEL-family 'stable' channel (confirmed across the RHEL family by direct testing), despite https://www.ntop.org/support/documentation/software-installation/ not calling out an exception for it. It IS available via --dev."
-            log "Install the tools you need directly instead, e.g.: dnf install ntopng nprobe   (or: yum install ntopng nprobe)"
-            return 0
+finish() {
+    skip_apt_refresh="${1:-0}"
+    install_cmd=""
+
+    if [ "$PLATFORM_FAMILY" = "freebsd" ]; then
+        install_cmd="pkg install ntopng nprobe"
+        if [ "$FREEBSD_VARIANT" != "freebsd" ]; then
+            log "Note: $FREEBSD_VARIANT ships a subset of the FreeBSD packages (e.g. Kafka support is not available). See https://packages.ntop.org/FreeBSD/ for details."
         fi
-        if need_cmd dnf; then
-            dnf install -y ntop-installer \
-                || die "'ntop-installer' is not available via dnf for $DISTRO_ID $DISTRO_VERSION on the 'dev' channel (the repository itself was added successfully, but this specific package wasn't found in it). Check https://packages.ntop.org/centos/ for what's actually published, or install packages directly with 'dnf install ntopng nprobe' etc."
+    elif need_cmd apt-get; then
+        if [ "$skip_apt_refresh" -eq 1 ]; then
+            log "The '$CHANNEL' channel was already installed - skipping apt index refresh."
         else
-            yum install -y ntop-installer \
-                || die "'ntop-installer' is not available via yum for $DISTRO_ID $DISTRO_VERSION on the 'dev' channel (the repository itself was added successfully, but this specific package wasn't found in it). Check https://packages.ntop.org/centos/ for what's actually published, or install packages directly with 'yum install ntopng nprobe' etc."
+            apt-get clean all
+            apt-get update -qq
         fi
-    else
-        die "No supported package manager found."
+        install_cmd="apt install ntopng nprobe"
+    elif need_cmd dnf; then
+        install_cmd="dnf install ntopng nprobe"
+    elif need_cmd yum; then
+        install_cmd="yum install ntopng nprobe"
     fi
 
-    if ! need_cmd ntop-installer; then
-        die "'ntop-installer' command not found after repository setup. Something is wrong with the bootstrap package for this platform."
-    fi
-
-    if [ "$RUN_WIZARD" -eq 1 ]; then
-        ok "ntop repository configured. Launching the package wizard..."
-        exec ntop-installer
+    ok "ntop repositories are ready."
+    if [ -n "$install_cmd" ]; then
+        ok "Now you can manually install the wanted program, for example via '$install_cmd' (or similar)."
     else
-        ok "ntop repository configured and ntop-installer is now available."
-        log "Run 'ntop-installer' (as root) whenever you're ready to pick and install packages."
+        ok "Now you can manually install the wanted program using your platform's package manager."
     fi
 }
 
@@ -636,38 +595,49 @@ install_and_maybe_run_wizard() {
 # ----------------------------------------------------------------------------
 
 main() {
+    # Cheap early scan just for --log, so verbosity is already in effect for
+    # every log() call from here on - including ones inside require_root()
+    # and detect_os(), both of which run before the real parse_args() call
+    # (parse_args() also recognizes --log itself, for --help/consistency,
+    # but by then require_root()/detect_os() would already have run).
+    for arg in "$@"; do
+        if [ "$arg" = "--log" ]; then
+            VERBOSE=1
+        fi
+    done
+
     require_root "$@"
-    # detect_os runs before parse_args because channel/wizard validation
-    # depends on PLATFORM_FAMILY (only "dev" and no wizard exist on the
-    # FreeBSD family).
+    # detect_os runs before parse_args because channel validation depends
+    # on PLATFORM_FAMILY (only "dev" exists on the FreeBSD family).
     detect_os
     parse_args "$@"
 
     if repo_already_configured; then
         if [ "$PLATFORM_FAMILY" = "freebsd" ]; then
             ok "ntop repository already configured for $FREEBSD_VARIANT, skipping repository setup."
-            report_freebsd_next_steps
+            finish
             return
         fi
 
         case "$INSTALLED_CHANNEL" in
             "$CHANNEL")
                 ok "ntop repository already configured with the '$CHANNEL' channel, skipping repository setup."
+                skip_apt_refresh=1
                 ;;
             unknown)
-                ok "ntop repository already configured, but this script cannot determine which channel (dev/stable) it points to. Skipping repository setup; remove the existing ntop repo files manually first if you need to switch to '$CHANNEL'."
+                die "ntop repository already configured, but this script cannot determine which channel (dev/stable) it points to. Skipping repository setup; remove the existing ntop repo files manually first if you need to switch to '$CHANNEL'."
                 ;;
             *)
-                ok "ntop repository already configured, but with the '$INSTALLED_CHANNEL' channel, NOT the requested '$CHANNEL' channel. Skipping repository setup to avoid leaving conflicting repos in place. Re-run with --$INSTALLED_CHANNEL to match what's installed, or remove the existing ntop repo files/packages first to switch to '$CHANNEL'."
+                die "ntop repository already configured, but with the '$INSTALLED_CHANNEL' channel, NOT the requested '$CHANNEL' channel. Skipping repository setup. If you want to switch channel, please look at https://www.ntop.org/faq/how-can-i-switch-from-stable-to-dev-builds-or-vice-versa/"
                 ;;
         esac
-        install_and_maybe_run_wizard
+        finish "$skip_apt_refresh"
         return
     fi
 
     if [ "$PLATFORM_FAMILY" = "freebsd" ]; then
         setup_freebsd_family
-        report_freebsd_next_steps
+        finish
         return
     fi
 
@@ -697,7 +667,7 @@ main() {
     esac
 
     ok "ntop repository added successfully (channel: $CHANNEL)."
-    install_and_maybe_run_wizard
+    finish
 }
 
 main "$@"
