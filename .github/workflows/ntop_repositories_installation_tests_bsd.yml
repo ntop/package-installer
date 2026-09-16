@@ -25,7 +25,7 @@ jobs:
       matrix:
         # Only releases currently published by vmactions/freebsd-vm
         # (https://github.com/vmactions/freebsd-vm#all-the-supported-releases-are-here)
-        # that also fall inside the majors ntop_repositories_installation.sh
+        # that also fall inside the majors ntop_repositories_install.sh
         # itself accepts (14/15/16, see setup_freebsd_family()). 16.x isn't
         # published by vmactions yet - add it here once it is.
         release: ["14.4", "15.1"]
@@ -50,7 +50,7 @@ jobs:
             uname -a
 
             echo "=== First run: --${{ matrix.channel }} ==="
-            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} --log > install-1.log 2>&1
+            sh ./ntop_repositories_install.sh --${{ matrix.channel }} --log > install-1.log 2>&1
             rc=$?
             cat install-1.log
             echo "exit code: $rc"
@@ -88,7 +88,7 @@ jobs:
             echo "PASS: repo file present"
 
             echo "=== Second run: idempotency check ==="
-            sh ./ntop_repositories_installation.sh --${{ matrix.channel }} --log > install-2.log 2>&1
+            sh ./ntop_repositories_install.sh --${{ matrix.channel }} --log > install-2.log 2>&1
             rc2=$?
             cat install-2.log
             if [ "$rc2" -ne 0 ]; then
@@ -118,7 +118,7 @@ jobs:
           run: |
             echo "OpenBSD Version..: $(uname -a)"
 
-            if sh ./ntop_repositories_installation.sh --dev; then
+            if sh ./ntop_repositories_install.sh --dev; then
               echo "FAIL: installer unexpectedly succeeded on an unsupported BSD"
               exit 1
             fi

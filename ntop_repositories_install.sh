@@ -2,8 +2,8 @@
 # ntop one-shot repository installer bootstrap
 #
 # Usage:
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_installation.sh | sh -s -- --dev
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_installation.sh | sh -s -- --channel=stable
+#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sh -s -- --dev
+#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sh -s -- --channel=stable
 #
 # What it does:
 #   1. Detects the platform: Linux distribution/version, or FreeBSD family

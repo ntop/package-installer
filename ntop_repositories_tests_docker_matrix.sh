@@ -1,11 +1,11 @@
 #!/bin/sh
-# Runs the real ntop_repositories_installation.sh inside real containers for each supported Linux
+# Runs the real ntop_repositories_install.sh inside real containers for each supported Linux
 # distro/version and does basic assertions on the output.
 #
-# Usage: ./ntop_repositories_tests_docker_matrix.sh [--install-packages] [ntop_repositories_installation.sh path]
-#   (run from the directory containing ntop_repositories_installation.sh, or pass its path)
+# Usage: ./ntop_repositories_tests_docker_matrix.sh [--install-packages] [ntop_repositories_install.sh path]
+#   (run from the directory containing ntop_repositories_install.sh, or pass its path)
 #
-#   --install-packages   after each ntop_repositories_installation.sh run, also attempt to
+#   --install-packages   after each ntop_repositories_install.sh run, also attempt to
 #                         actually install nprobe/ntopng from the freshly
 #                         configured repo (apt-get/dnf/yum, whichever
 #                         applies) and check that it succeeds - this proves
@@ -25,8 +25,8 @@ for arg in "$@"; do
         *)                     SCRIPT="$arg" ;;
     esac
 done
-SCRIPT="${SCRIPT:-$(pwd)/ntop_repositories_installation.sh}"
-[ -f "$SCRIPT" ] || { echo "ntop_repositories_installation.sh not found at $SCRIPT"; exit 1; }
+SCRIPT="${SCRIPT:-$(pwd)/ntop_repositories_install.sh}"
+[ -f "$SCRIPT" ] || { echo "ntop_repositories_install.sh not found at $SCRIPT"; exit 1; }
 SCRIPT="$(cd "$(dirname "$SCRIPT")" && pwd)/$(basename "$SCRIPT")"
 
 if [ "$INSTALL_PACKAGES" = "1" ]; then
@@ -39,12 +39,12 @@ PASS=0
 FAIL=0
 
 # check_image IMAGE ARGS PATTERN...
-# Runs ntop_repositories_installation.sh once in a fresh container; all PATTERNs must appear in
+# Runs ntop_repositories_install.sh once in a fresh container; all PATTERNs must appear in
 # the combined output for the case to PASS. Set PRECMD before calling to
-# run an extra shell snippet inside the container before ntop_repositories_installation.sh (used
+# run an extra shell snippet inside the container before ntop_repositories_install.sh (used
 # below for the debian:11 EOL-mirror workaround); it's reset after use.
 # If INSTALL_PACKAGES=1, also attempts `<pkg-mgr> install -y nprobe ntopng`
-# after ntop_repositories_installation.sh and requires that to exit 0 as well - this is the real
+# after ntop_repositories_install.sh and requires that to exit 0 as well - this is the real
 # proof the configured repo actually works, not just that files got written.
 check_image() {
     image="$1"; args="$2"; shift 2
@@ -59,9 +59,9 @@ check_image() {
     # itself specifies: CI needs the full diagnostic detail (e.g. "Selected
     # channel: ..."), which is intentionally quiet by default for real
     # end-user runs otherwise.
-    cmd="sh /ntop_repositories_installation.sh $args --log"
+    cmd="sh /ntop_repositories_install.sh $args --log"
     if [ "$INSTALL_PACKAGES" = "1" ]; then
-        # Try whichever package manager ntop_repositories_installation.sh itself would have used.
+        # Try whichever package manager ntop_repositories_install.sh itself would have used.
         # DEBIAN_FRONTEND=noninteractive avoids hanging on any debconf
         # prompt (e.g. license-acknowledgement style questions) that would
         # otherwise block forever with no TTY attached.
@@ -80,7 +80,7 @@ fi
 echo PACKAGE_INSTALL_EXIT_CODE:\$?"
     fi
 
-    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_installation.sh:ro" "$image" \
+    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_install.sh:ro" "$image" \
         sh -c "${precmd}${cmd}" 2>&1)"
     rc=$?
     echo "$out"
@@ -106,7 +106,7 @@ echo PACKAGE_INSTALL_EXIT_CODE:\$?"
 }
 
 # check_idempotency IMAGE ARGS
-# Runs ntop_repositories_installation.sh twice in the SAME container; the second run must report
+# Runs ntop_repositories_install.sh twice in the SAME container; the second run must report
 # "already configured" rather than reconfiguring from scratch.
 check_idempotency() {
     image="$1"; args="$2"
@@ -114,8 +114,8 @@ check_idempotency() {
     echo "IDEMPOTENCY: $image   ARGS: $args (run twice in the same container)"
     echo "=================================================================="
 
-    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_installation.sh:ro" "$image" \
-        sh -c "sh /ntop_repositories_installation.sh $args --log && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $args --log" 2>&1)"
+    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_install.sh:ro" "$image" \
+        sh -c "sh /ntop_repositories_install.sh $args --log && echo ===SECOND-RUN=== && sh /ntop_repositories_install.sh $args --log" 2>&1)"
     rc=$?
     echo "$out"
     echo "--- exit code: $rc ---"
@@ -131,7 +131,7 @@ check_idempotency() {
 }
 
 # check_channel_switch_dies IMAGE FIRST_ARGS SECOND_ARGS
-# Runs ntop_repositories_installation.sh once with FIRST_ARGS, then again with
+# Runs ntop_repositories_install.sh once with FIRST_ARGS, then again with
 # SECOND_ARGS in the SAME container. Since the repo is already configured for
 # a DIFFERENT channel than the second run asks for, the second run must now
 # die() (non-zero exit + a channel-mismatch message) rather than silently
@@ -143,8 +143,8 @@ check_channel_switch_dies() {
     echo "CHANNEL SWITCH: $image   $first_args -> $second_args (2nd run must die)"
     echo "=================================================================="
 
-    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_installation.sh:ro" "$image" \
-        sh -c "sh /ntop_repositories_installation.sh $first_args --log && echo ===SECOND-RUN=== && sh /ntop_repositories_installation.sh $second_args --log" 2>&1)"
+    out="$(docker run --rm -v "$SCRIPT:/ntop_repositories_install.sh:ro" "$image" \
+        sh -c "sh /ntop_repositories_install.sh $first_args --log && echo ===SECOND-RUN=== && sh /ntop_repositories_install.sh $second_args --log" 2>&1)"
     rc=$?
     echo "$out"
     echo "--- final exit code: $rc ---"
@@ -173,15 +173,15 @@ check_image "debian:13"    "--stable" "Selected channel: stable"  "ntop reposito
 
 # debian:11 (bullseye) is past standard support; the official image's mirror
 # pins can go stale enough that apt refuses expired Release files. That's
-# apt behaving correctly on an EOL system, not an ntop_repositories_installation.sh bug - this
-# workaround is TEST-ONLY (never do this in ntop_repositories_installation.sh itself).
+# apt behaving correctly on an EOL system, not an ntop_repositories_install.sh bug - this
+# workaround is TEST-ONLY (never do this in ntop_repositories_install.sh itself).
 PRECMD="echo 'Acquire::Check-Valid-Until \"false\";' > /etc/apt/apt.conf.d/99no-check-valid-until-TESTONLY; "
 check_image "debian:11"    "--stable" "Selected channel: stable"  "ntop repository added successfully"
 
 # --- RHEL family ---
 # Confirmed (by direct testing, across the whole RHEL family / all majors):
 # ntop-installer is never available on the stable channel, despite ntop's
-# own docs not calling out an exception for it. ntop_repositories_installation.sh handles this
+# own docs not calling out an exception for it. ntop_repositories_install.sh handles this
 # generically (not gated to a specific major) - it skips the doomed dnf/yum
 # install attempt entirely and reports it instead, still exiting 0 since the
 # repo itself was configured successfully. So the --stable cases below are

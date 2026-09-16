@@ -33,5 +33,5 @@ jobs:
 
       - name: Run ntop_repositories_tests_docker_matrix.sh ${{ matrix.args }}
         run: |
-          chmod +x ntop_repositories_installation.sh ntop_repositories_tests_docker_matrix.sh
+          chmod +x ntop_repositories_install.sh ntop_repositories_tests_docker_matrix.sh
           ./ntop_repositories_tests_docker_matrix.sh ${{ matrix.args }}
