@@ -14,10 +14,12 @@
 #      which channel - if it's already configured for a DIFFERENT channel
 #      than the one requested, this is reported explicitly and the existing
 #      repo is left untouched (no double/conflicting configuration)
-#   3. Requires the channel to be specified explicitly via --dev/--stable/
-#      --channel=.../NTOP_CHANNEL - there is no default and no interactive
-#      prompt; if none is given, the script prints a message and exits
-#      without doing anything
+#   3. Determines the channel: --dev/--stable/--channel=.../NTOP_CHANNEL, in
+#      that lookup order. If none of those are set, and a terminal is
+#      attached (not the case for curl | sh, where stdin is the pipe, not a
+#      terminal), asks interactively - "dev" or "stable" are the only two
+#      choices, obviously. With no flag/env var AND no terminal to ask on,
+#      the script exits with an error instead of picking anything by default
 #      -> on FreeBSD/pfSense/OPNsense only "dev" is published
 #         (see https://packages.ntop.org/FreeBSD/); if "stable" was
 #         requested there, this is reported and "dev" is used instead
@@ -117,10 +119,10 @@ Usage: ntop_repositories_install.sh --dev|--stable|--channel=dev|stable [--log]
   --log            verbose logging (default: only success/error messages
                    are printed)
 
-The channel must be specified explicitly - there is no default and this
-script never prompts interactively for it. Environment variable
-NTOP_CHANNEL is also honored (useful for non-interactive / curl | sh
-usage).
+The channel must be specified via --dev/--stable/--channel=.../NTOP_CHANNEL.
+If none of those are given AND a terminal is attached (not the case for
+curl | sh), you'll be asked interactively instead; otherwise the script
+exits with an error rather than picking a default silently.
 
 This script only sets up the ntop package repository (and, on EL10, the
 redis dependency it needs) - it does not install or launch any ntop
@@ -140,10 +142,27 @@ EOF
         CHANNEL="$NTOP_CHANNEL"
     fi
 
-    # No default and no interactive prompt: the channel must be given
-    # explicitly, every time, on every platform.
+    # No silent default. If nothing determined the channel via a flag or
+    # NTOP_CHANNEL, fall back to asking interactively - but only when
+    # there's an actual terminal attached to prompt on (e.g. the script was
+    # downloaded and run locally, not piped via curl | sh, where stdin is
+    # the pipe itself rather than a terminal). Otherwise, die with a clear
+    # message rather than silently picking anything.
     if [ -z "$CHANNEL" ]; then
-        die "No channel specified. Pass --dev or --stable (or --channel=dev|stable, or set NTOP_CHANNEL). Run with --help for details."
+        if [ -t 0 ]; then
+            printf '%sWhich ntop package channel do you want to use?%s\n' "$BOLD" "$NORMAL"
+            printf '  1) stable  (recommended for production)\n'
+            printf '  2) dev     (nightly builds, latest features)\n'
+            printf 'Choice [1]: '
+            read -r choice </dev/tty
+            case "$choice" in
+                ""|1) CHANNEL="stable" ;;
+                2)    CHANNEL="dev" ;;
+                *)    die "Invalid choice '$choice' - expected 1, 2, or Enter for the default." ;;
+            esac
+        else
+            die "No channel specified, and no terminal is attached to ask interactively (e.g. this was piped via curl | sh). Pass --dev or --stable (or --channel=dev|stable, or set NTOP_CHANNEL). Run with --help for details."
+        fi
     fi
 
     case "$CHANNEL" in
