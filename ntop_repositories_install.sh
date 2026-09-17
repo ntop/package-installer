@@ -400,24 +400,21 @@ setup_ubuntu() {
         *) die "Unsupported Ubuntu version '$DISTRO_VERSION'. Supported per current docs: 22.04, 24.04, 26.04 (see https://www.ntop.org/support/documentation/software-installation/)." ;;
     esac
 
+    # Common packages
     setup_apt_common_tools
-    # software-properties-common (for add-apt-repository) is Ubuntu-specific;
+    # Ubuntu-specific package: software-properties-common (for add-apt-repository);
     # Debian doesn't need it and, as of trixie, doesn't reliably ship it.
     apt-get install -y software-properties-common >/dev/null
     add-apt-repository -y universe
 
     workdir="$(mktemp -d)"
     if [ "$CHANNEL" = "stable" ]; then
-        case "$DISTRO_VERSION" in
-            22.04|24.04|26.04) pkg="apt-ntop-stable.deb" ;;
-            *) die "Stable channel is not published for Ubuntu $DISTRO_VERSION yet (see https://www.ntop.org/support/documentation/software-installation/). Try --dev instead." ;;
-        esac
-        url="https://packages.ntop.org/apt-stable/$DISTRO_VERSION/all/$pkg"
+        url="https://packages.ntop.org/apt-stable/$DISTRO_VERSION/all/apt-ntop-stable.deb"
     else
-        pkg="apt-ntop.deb"
-        url="https://packages.ntop.org/apt/$DISTRO_VERSION/all/$pkg"
+        url="https://packages.ntop.org/apt/$DISTRO_VERSION/all/apt-ntop.deb"
     fi
 
+    pkg="$(basename "$url")"
     log "Downloading $url"
     wget -q -O "$workdir/$pkg" "$url" || die "Could not download $url"
     apt install -y "$workdir/$pkg"
@@ -428,24 +425,21 @@ setup_debian_like() {
     # $1 = codename (bullseye|bookworm|trixie)
     codename="$1"
 
+    case "$codename" in
+        bullseye|bookworm|trixie) ;;
+        *) die "Unsupported Debian codename '$codename'." ;;
+    esac
+
+    # Common packages
     setup_apt_common_tools
+
     add_contrib_if_missing
 
     workdir="$(mktemp -d)"
     if [ "$CHANNEL" = "stable" ]; then
-        case "$codename" in
-            bullseye|bookworm|trixie)
-                url="https://packages.ntop.org/apt-stable/$codename/all/apt-ntop-stable.deb"
-                ;;
-            *) die "Unsupported Debian codename '$codename'." ;;
-        esac
+       url="https://packages.ntop.org/apt-stable/$codename/all/apt-ntop-stable.deb"
     else
-        case "$codename" in
-            bullseye|bookworm|trixie)
-                url="https://packages.ntop.org/apt/$codename/all/apt-ntop.deb"
-                ;;
-            *) die "Unsupported Debian codename '$codename'." ;;
-        esac
+       url="https://packages.ntop.org/apt/$codename/all/apt-ntop.deb"
     fi
 
     pkg="$(basename "$url")"
@@ -456,20 +450,13 @@ setup_debian_like() {
 }
 
 setup_raspbian() {
-    # As of this writing, ntop's own current instructions (packages.ntop.org
-    # index page) use a self-contained bootstrap .deb here - the same
-    # pattern as Debian/Ubuntu, NOT the older "echo deb-lines into
-    # sources.list.d" approach (which pointed at apt.ntop.org, a domain that
-    # no longer resolves). (The arm64-only architecture check for this
-    # platform lives in detect_linux_os(), since it must fire even when the
-    # repo is already configured and this function never runs again.)
-    #
-    # Per https://www.ntop.org/support/documentation/software-installation/
-    # only ONE build is currently documented for Raspbian/rPi OS - there is
+    # Only ONE build is currently documented for Raspbian/rPi OS - there is
     # no separate stable tab/URL at all (unlike Debian/Ubuntu/RHEL family).
     if [ "$CHANNEL" = "stable" ]; then
         ok "Only the 'dev' (nightly) build is currently documented for Raspbian/rPi OS (see https://www.ntop.org/support/documentation/software-installation/). Using it instead of 'stable'."
     fi
+
+    # Common packages
     setup_apt_common_tools
 
     workdir="$(mktemp -d)"
@@ -684,10 +671,7 @@ main() {
             if [ "$IS_RASPBERRY" -eq 1 ]; then
                 setup_raspbian
             else
-                case "$DISTRO_CODENAME" in
-                    bullseye|bookworm|trixie) setup_debian_like "$DISTRO_CODENAME" ;;
-                    *) die "Unsupported Debian codename '$DISTRO_CODENAME'." ;;
-                esac
+                setup_debian_like "$DISTRO_CODENAME"
             fi
             ;;
         rocky|almalinux|centos|rhel)
