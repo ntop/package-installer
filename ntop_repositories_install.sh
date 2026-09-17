@@ -533,17 +533,13 @@ setup_rhel_like() {
     esac
 
     if [ "$major" = "10" ]; then
-        # New as of the current docs: redis was dropped from EL10's base
-        # repos by the distro maintainers and must be installed manually via
+        # Redis was dropped from EL10's base repos and must be installed manually via
         # remi, or package installs the user does later (e.g. ntopng) can
         # fail on the missing redis dependency.
-        log "EL10: redis was removed from base repos upstream - installing it via remi, per current docs."
-        dnf install -y https://rpms.remirepo.net/enterprise/remi-release-10.rpm \
-            || die "Could not install remi-release-10.rpm (needed for redis on EL10)."
-        dnf module enable -y redis:remi-7.2 \
-            || die "Could not enable the redis:remi-7.2 module stream."
-        dnf install -y redis \
-            || die "Could not install redis from the remi repo."
+        log "EL10: installing redis it via remi"
+        dnf install -y https://rpms.remirepo.net/enterprise/remi-release-10.rpm
+        dnf module enable -y redis:remi-7.2
+        dnf install -y redis
         systemctl enable redis 2>/dev/null || log "WARNING: 'systemctl enable redis' failed (non-systemd container? harmless if so)."
     fi
 }
