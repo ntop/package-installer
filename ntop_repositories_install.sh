@@ -58,6 +58,9 @@ if [ -t 1 ]; then
     GREEN="$(printf '\033[32m')"
 fi
 
+DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND
+
 # By default only ok()/die() messages are printed. log() (verbose/progress
 # detail) is silent unless --log was passed - see the early scan for it in
 # main(), which runs before anything else so verbosity is in effect from
