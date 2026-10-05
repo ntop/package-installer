@@ -17,7 +17,7 @@
 # Run manually, as root, with no options:
 #   sudo ./ntop_migrate_repository.sh
 #
-# Supported: Ubuntu, Debian, x86_64.
+# Supported: Ubuntu, x86_64.
 #
 # RHEL-like systems (RHEL/CentOS/AlmaLinux/Rocky) are deliberately NOT
 # handled here: their ntop.repo baseurl uses dnf/yum's own $releasever
@@ -29,14 +29,21 @@
 # all. Running this script on such a system would only add a redundant
 # re-download with nothing to correct, so instead it just says so and exits.
 #
+# Debian is detected but also deliberately NOT handled here: its ntop repo
+# file hardcodes the release codename (e.g. bookworm), but Debian's official
+# upgrade instructions have you replace the old codename with the new one in
+# all apt sources, which includes the ntop repo file - so anyone who follows
+# them has already migrated the ntop repository as part of the upgrade, and
+# there is nothing left for this script to do.
+#
 # --- how to extend --------------------------------------------------------
 # New OS VERSION of an already-supported family: nothing to do, it just
 #   works - the version is read from /etc/os-release at run time.
-# New OS FAMILY whose repo file DOES hardcode an OS version (like Ubuntu/
-#   Debian): add it to the case in "OS detection" below and give it the
-#   same treatment as those two.
-# New OS FAMILY whose repo file does NOT hardcode an OS version (like
-#   RHEL-family): add it to the "nothing to do" case instead.
+# New OS FAMILY whose repo file DOES hardcode an OS version and whose
+#   upgrade procedure does NOT update it (like Ubuntu): add it to the case
+#   in "OS detection" below and give it the same treatment as Ubuntu.
+# New OS FAMILY that needs no migration (like RHEL-family, or Debian): add
+#   it to a "nothing to do" branch of that case instead.
 # ---------------------------------------------------------------------------
 
 set -eu
@@ -60,7 +67,7 @@ command -v curl >/dev/null 2>&1 || die "curl is required but not installed"
 
 [ -r /etc/os-release ] || die "/etc/os-release not found: cannot detect the OS"
 . /etc/os-release
-# ID, VERSION_ID, VERSION_CODENAME now available.
+# ID and VERSION_ID now available.
 
 # --- OS detection ------------------------------------------------------
 
@@ -69,8 +76,11 @@ case "$ID" in
         log "Nothing to do/migrate on $ID. You can already run the usual package update/upgrade command for ntopng/nprobe/etc."
         exit 0
         ;;
-    ubuntu) version_token="$VERSION_ID" ;;        # e.g. 24.04, 26.04
-    debian) version_token="$VERSION_CODENAME" ;;  # e.g. bookworm, trixie
+    debian)
+        log "Nothing to do on Debian: if you follow (or have followed) the official Debian upgrade instructions, the ntop repository gets updated (or was already updated) together with the rest of your apt sources. You can already run the usual package update/upgrade command for ntopng/nprobe/etc."
+        exit 0
+        ;;
+    ubuntu) version_token="$VERSION_ID" ;;  # e.g. 24.04, 26.04
     *) die "unsupported OS '$ID'." ;;
 esac
 

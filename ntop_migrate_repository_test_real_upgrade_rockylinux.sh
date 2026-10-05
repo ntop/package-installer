@@ -2,7 +2,7 @@
 #
 # ntop_migrate_repository_test_real_upgrade_rockylinux.sh
 #
-# Same spirit as the Ubuntu/Debian real-upgrade tests, but the expected
+# Same spirit as the Ubuntu real-upgrade test, but the expected
 # outcome is different by design: RHEL-family's ntop.repo baseurl uses
 # dnf's own $releasever variable instead of a hardcoded OS version (see the
 # RHEL-like comment near the top of ntop_migrate_repository.sh), so there
@@ -14,7 +14,7 @@
 #   2. Confirm they actually run (nprobe -h / ntopng -h).
 #   3. Bump the container to Rocky Linux 10 packages.
 #   4. Confirm upgrading nprobe/ntopng ALREADY works, before migration runs
-#      (unlike the Ubuntu/Debian case - this is the expected, correct
+#      (unlike the Ubuntu case - this is the expected, correct
 #      outcome here, not a bug).
 #   5. Run ntop_migrate_repository.sh (expected to immediately say there's
 #      nothing to do here and exit - not a required fix, not even a refresh).
@@ -154,7 +154,7 @@ require_marker "INSTALL_EXIT" "0"                          # ntopng/nprobe insta
 require_marker "INSTALLED_COUNT_PRE" "2"                    # both really installed, pre-upgrade
 require_marker "DISTRO_SYNC_EXIT" "0"                        # the (approximated) major upgrade itself succeeded
 require_marker_prefix "OS_NOW" "$NEW_RELEASEVER"            # proves the upgrade actually happened
-require_marker "PRE_MIGRATION_UPGRADE_EXIT" "0"              # <-- expected to ALREADY work, unlike Ubuntu/Debian
+require_marker "PRE_MIGRATION_UPGRADE_EXIT" "0"              # <-- expected to ALREADY work, unlike Ubuntu
 require_marker "MIGRATION_EXIT" "0"                           # our script says "nothing to do" and exits cleanly
 require_marker "REPO_UNCHANGED" "yes"                         # and genuinely never touches ntop.repo
 require_marker "POST_MIGRATION_UPGRADE_EXIT" "0"              # still works afterwards

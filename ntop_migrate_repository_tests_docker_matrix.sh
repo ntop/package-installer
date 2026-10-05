@@ -2,7 +2,7 @@
 #
 # ntop_migrate_repository_tests_docker_matrix.sh
 #
-# For Ubuntu/Debian cases: starts a container already running the NEW OS
+# For Ubuntu cases: starts a container already running the NEW OS
 # version, but first seeds it with the OLD OS version's ntop repo config
 # (exactly what a real in-place OS upgrade leaves behind - this is the
 # "invalid situation" the migration script exists to fix), then runs
@@ -12,14 +12,18 @@
 # design (see the comment in the main script), so these instead prove it
 # exits cleanly, says so, and leaves the existing repo file untouched.
 #
+# For Debian: same idea - it does nothing and explains why (official Debian
+# upgrade instructions already update the ntop repo file along with the
+# rest of the apt sources).
+#
 # Usage: ./ntop_migrate_repository_tests_docker_matrix.sh
 # (run from the directory containing ntop_migrate_repository.sh)
 #
 # --- how to extend ---------------------------------------------------------
 # New case for an already-supported scenario: add one more call to the
 #   matching helper below (check / check_fails / check_noop / check_rhel_noop).
-# New OS family whose repo file hardcodes an OS version (like Ubuntu/
-#   Debian): use check() with the right SEED_CMD/REFRESH_CMD for that
+# New OS family whose repo file hardcodes an OS version and isn't updated
+#   by its own upgrade procedure (like Ubuntu): use check() with the right SEED_CMD/REFRESH_CMD for that
 #   family's package manager.
 # New OS family whose repo file does NOT hardcode a version (like RHEL-
 #   family): use check_rhel_noop() instead, matching the main script's
@@ -112,10 +116,10 @@ check_fails() {
 
 # check_noop NAME IMAGE SEED_CMD PATTERN...
 #
-# Same as check(), but for the case where the repo is ALREADY correct for
-# this OS: ntop_migrate_repository.sh must detect that and do nothing - no
-# download, no reinstall - rather than blindly redoing the setup step every
-# time it's run.
+# Same as check(), but for cases where ntop_migrate_repository.sh must do
+# nothing - no download, no reinstall - and exit 0: either because the repo
+# is ALREADY correct for this OS (Ubuntu), or because the OS needs no
+# migration at all (Debian).
 check_noop() {
     name="$1"; image="$2"; seed_cmd="$3"; shift 3
 
@@ -197,7 +201,7 @@ check_rhel_noop() {
 }
 
 # lsb-release, gnupg and whiptail are apt-ntop's own dependencies. A normal
-# host has these already; the minimal ubuntu/debian Docker images don't, so
+# host has these already; the minimal ubuntu Docker image doesn't, so
 # the seed step needs to install them explicitly or dpkg -i fails.
 APT_PREP="apt-get update -qq && apt-get install -y -qq curl ca-certificates lsb-release gnupg whiptail"
 
@@ -223,11 +227,10 @@ check "ubuntu 24.04->26.04 stable" "ubuntu:26.04" \
     "apt-get update" \
     "channel: stable" "done. The ntop repository now matches this OS"
 
-# --- Debian: upgraded bookworm -> trixie, dev channel was configured -----
-check "debian bookworm->trixie dev" "debian:trixie" \
-    "$APT_PREP && curl -fsSL https://packages.ntop.org/apt/trixie/all/apt-ntop.deb -o /tmp/cur.deb && (dpkg -i /tmp/cur.deb || apt-get install -f -y) && list=\$(grep -rlE 'packages\.ntop\.org' /etc/apt/sources.list.d | head -1) && sed -i 's/trixie/bookworm/g' \$list" \
-    "apt-get update" \
-    "channel: dev" "done. The ntop repository now matches this OS"
+# --- Debian: not handled, must say why and do nothing ---------------------
+check_noop "debian -> explains official upgrade instructions, no-op" "debian:trixie" \
+    "apt-get update -qq && apt-get install -y -qq curl" \
+    "official Debian upgrade instructions"
 
 # --- Already up to date: must detect this and do nothing, not re-download -
 check_noop "ubuntu 24.04 already correctly configured -> no-op" "ubuntu:24.04" \
