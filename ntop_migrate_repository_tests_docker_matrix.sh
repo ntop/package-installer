@@ -221,6 +221,24 @@ check "ubuntu 24.04->26.04 dev" "ubuntu:26.04" \
     "apt-get update" \
     "channel: dev" "done. The ntop repository now matches this OS"
 
+# --- Ubuntu: what a REAL release upgrade leaves behind -----------------------
+# do-release-upgrade can't migrate the ntop .list file, so it renames it to
+# ntop.list.disabled with all lines commented out (apt ignores it). Only the
+# apt-ntop package is still registered as installed.
+check "ubuntu 24.04->26.04 dev, real-upgrade .list.disabled state" "ubuntu:26.04" \
+    "$APT_PREP && curl -fsSL https://packages.ntop.org/apt/26.04/all/apt-ntop.deb -o /tmp/cur.deb && (dpkg -i /tmp/cur.deb || apt-get install -f -y) && list=\$(grep -rlE 'packages\.ntop\.org' /etc/apt/sources.list.d | head -1) && sed -i -e 's/26\.04/24.04/g' -e 's/^/# /' \$list && mv \$list \$list.disabled" \
+    "apt-get update" \
+    "channel: dev" "downloading https://" "done. The ntop repository now matches this OS"
+
+# --- Ubuntu: 22.04 -> 24.04 real-upgrade state (.list.distUpgrade) ----------
+# Observed on a real VM: after the GUI upgrade the only ntop file left is
+# ntop.list.distUpgrade, still pointing at 22.04 and NOT commented out (apt
+# ignores it because of the extension). No active ntop file exists.
+check "ubuntu 22.04->24.04 dev, real-upgrade .list.distUpgrade state" "ubuntu:24.04" \
+    "$APT_PREP && curl -fsSL https://packages.ntop.org/apt/24.04/all/apt-ntop.deb -o /tmp/cur.deb && (dpkg -i /tmp/cur.deb || apt-get install -f -y) && list=\$(grep -rlE 'packages\.ntop\.org' /etc/apt/sources.list.d | head -1) && sed -i 's/24\.04/22.04/g' \$list && mv \$list \$list.distUpgrade" \
+    "apt-get update" \
+    "channel: dev" "downloading https://" "done. The ntop repository now matches this OS"
+
 # --- Ubuntu: upgraded 24.04 -> 26.04, stable channel was configured ------
 check "ubuntu 24.04->26.04 stable" "ubuntu:26.04" \
     "$APT_PREP && curl -fsSL https://packages.ntop.org/apt-stable/26.04/all/apt-ntop-stable.deb -o /tmp/cur.deb && (dpkg -i /tmp/cur.deb || apt-get install -f -y) && list=\$(grep -rlE 'packages\.ntop\.org' /etc/apt/sources.list.d | head -1) && sed -i 's/26\.04/24.04/g' \$list" \

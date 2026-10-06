@@ -116,8 +116,11 @@ log "OS: $ID $version_token, channel: $channel"
 # installed repo file actually points at. That file is written by
 # apt-ntop's postinst script rather than shipped as package content, so it
 # won't show up via `dpkg -L` - search sources.list.d directly.
-list_file="$(grep -rlE 'packages\.ntop\.org' /etc/apt/sources.list.d 2>/dev/null | head -1)"
-if [ -n "$list_file" ] && grep -q "/$version_token/" "$list_file"; then
+# Only ACTIVE files (*.list / *.sources) and uncommented lines count: a real
+# Ubuntu release upgrade renames repo files it can't migrate to
+# *.list.disabled with the lines commented out, and apt ignores those.
+if grep -rhE '^[^#]*packages\.ntop\.org' --include='*.list' --include='*.sources' \
+        /etc/apt/sources.list.d 2>/dev/null | grep -q "/$version_token/"; then
     log "ntop repository already matches this OS - nothing to do. You can already run the usual package update/upgrade command for ntopng/nprobe/etc."
     exit 0
 fi
