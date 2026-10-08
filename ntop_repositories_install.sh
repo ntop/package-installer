@@ -582,11 +582,15 @@ setup_freebsd_family() {
 }
 
 # ----------------------------------------------------------------------------
-# Final step: refresh the apt index where relevant (dnf/yum/pkg refresh on
-# their own), then tell the user what to do next. This script only ever
+# Final step: refresh the apt index where relevant, unless nothing changed
+# (dnf/yum/pkg refresh on their own), then tell the user what to do next.
+# This script only ever
 # sets up the repository (and, on EL10, redis) - it never installs or
 # launches any ntop package/tool itself.
 # ----------------------------------------------------------------------------
+
+# 1 = refresh the apt index in finish(); set to 0 when nothing was changed.
+REFRESH_INDEX=1
 
 finish() {
     install_cmd=""
@@ -597,12 +601,14 @@ finish() {
             log "Note: $FREEBSD_VARIANT ships a subset of the FreeBSD packages (e.g. Kafka support is not available). See https://packages.ntop.org/FreeBSD/ for details."
         fi
     elif need_cmd apt-get; then
-        # Always refresh, even when the repo config was already present:
-        # "the repo file/package is there" does NOT guarantee the local apt
-        # index cache is actually populated/fresh (stale after a reboot, a
-        # cleared cache, time passing, etc.).
-        apt-get clean all
-        apt-get update -qq
+        # Refresh the apt index only if this run actually changed the repo
+        # configuration (REFRESH_INDEX=1, the default). When the requested
+        # channel was already configured there is nothing to do, so we skip
+        # apt-get clean/update entirely.
+        if [ "$REFRESH_INDEX" -eq 1 ]; then
+            apt-get clean all
+            apt-get update -qq
+        fi
         install_cmd="apt install ntopng nprobe"
     elif need_cmd dnf; then
         install_cmd="dnf install ntopng nprobe"
@@ -650,6 +656,7 @@ main() {
         case "$INSTALLED_CHANNEL" in
             "$CHANNEL")
                 ok "ntop repository already configured with the '$CHANNEL' channel, skipping repository setup."
+                REFRESH_INDEX=0
                 ;;
             unknown)
                 die "ntop repository already configured, but this script cannot determine which channel (dev/stable) it points to. Skipping repository setup; remove the existing ntop repo files manually first if you need to switch to '$CHANNEL'."
