@@ -243,8 +243,8 @@ check_curl_pipe_no_sudo_dies() {
         echo "REGRESSION: hit the old \$0-under-a-pipe crash (cannot open sh/bash) - require_root()'s fix is broken"
         ok=0
     fi
-    if ! echo "$out" | grep -qF "can't re-exec itself with sudo when run via a pipe"; then
-        echo "MISSING: expected the clean 'run via a pipe' die() message"
+    if ! echo "$out" | grep -qF "Root privileges are required, e.g.: curl"; then
+        echo "MISSING: expected the clean 'Root privileges are required' die() message"
         ok=0
     fi
 
