@@ -2,10 +2,12 @@
 # ntop one-shot repository installer bootstrap
 #
 # Usage:
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sudo sh -s -- --dev
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sudo NTOP_CHANNEL=stable sh
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sh -s -- --dev
-#   curl -fsSL https://packages.ntop.org/ntop_repositories_install.sh | sh -s -- --channel=stable
+#   curl -fsSL https://raw.githubusercontent.com/ntop/package-installer/refs/heads/main/ntop_repositories_install.sh -o ntop_repositories_install.sh &&
+#		sudo sh ntop_repositories_install.sh --dev
+#   curl -fsSL https://raw.githubusercontent.com/ntop/package-installer/refs/heads/main/ntop_repositories_install.sh | sudo sh -s -- --dev
+#   curl -fsSL https://raw.githubusercontent.com/ntop/package-installer/refs/heads/main/ntop_repositories_install.sh | sudo NTOP_CHANNEL=stable sh
+#   curl -fsSL https://raw.githubusercontent.com/ntop/package-installer/refs/heads/main/ntop_repositories_install.sh | sudo sh -s -- --dev
+#   curl -fsSL https://raw.githubusercontent.com/ntop/package-installer/refs/heads/main/ntop_repositories_install.sh | sudo sh -s -- --channel=stable
 #
 # What it does:
 #   1. Detects the platform: Linux distribution/version, or FreeBSD family
@@ -91,7 +93,7 @@ require_root() {
                 die "This script must be run as root (sudo not found)."
             fi
         else
-            die "Root privileges are required, and this script can't re-exec itself with sudo when run via a pipe (no real file to re-run). Prefix the whole pipeline with sudo instead, e.g.: curl -fsSL <script-url> | sudo sh -s -- --dev   (or download the script first and run it directly)."
+            die "Root privileges are required, e.g.: curl -fsSL <script-url> | sudo sh -s -- --dev (or download the script first and run it directly)."
         fi
     fi
 }
@@ -319,11 +321,18 @@ repo_already_configured() {
         fi
     fi
 
-    # Raspbian/other apt setups where ntop.list might exist for some other
-    # reason: the docs only publish one (dev) set of lines historically for
-    # this platform, so we can't distinguish a channel from the file alone.
+    # Fallback when the bootstrap package is not registered with dpkg (e.g.
+    # the .list file was created by hand or the package was removed): classify
+    # by the repository URL. Stable lives under .../apt-stable/, dev under
+    # .../apt/ (including the Raspberry Pi .../apt/<codename>_pi layout).
     if [ -f /etc/apt/sources.list.d/ntop.list ]; then
-        INSTALLED_CHANNEL="unknown"
+        if grep -q "packages.ntop.org/apt-stable/" /etc/apt/sources.list.d/ntop.list 2>/dev/null; then
+            INSTALLED_CHANNEL="stable"
+        elif grep -q "packages.ntop.org/apt/" /etc/apt/sources.list.d/ntop.list 2>/dev/null; then
+            INSTALLED_CHANNEL="dev"
+        else
+            INSTALLED_CHANNEL="unknown"
+        fi
         return 0
     fi
 
