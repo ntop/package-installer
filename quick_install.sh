@@ -150,22 +150,25 @@ install_rocky() {
 
     case "$MAJOR_VERSION" in
 	10)
-	    dnf -y install epel-release
+	    # Nothing to do
 	    ;;
 	9)
 	    dnf config-manager --set-enabled crb
-	    dnf -y install epel-release
 	    ;;	
 	8)
+	    yum install epel-release
+	    rpm -ivh http://rpms.remirepo.net/enterprise/remi-release-8.rpm
+	    yum install dnf-plugins-core	    
 	    dnf config-manager --set-enabled powertools
-	    dnf -y install epel-release
 	    ;;	
 	*)
 	    echo "Warning: RH/Rocky Linux version $VERSION is unsupported."
 	    exit 1
 	    ;;
     esac
-    
+
+    # Do the rest
+    dnf -y install epel-release
     curl https://packages.ntop.org/centos$STABLE/ntop.repo > /etc/yum.repos.d/ntop.repo
     dnf -y install ntop-installer
     ntop-installer
