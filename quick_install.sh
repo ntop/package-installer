@@ -104,9 +104,9 @@ install_debian() {
     case "$VERSION" in
 	11|12|13)
 	    apt update
-	    apt install lsb-release wget gnupg apt-transport-https ca-certificates whiptail
+	    apt -y install lsb-release wget gnupg apt-transport-https ca-certificates whiptail
 	    wget https://packages.ntop.org/apt/$CODENAME/all/apt-ntop.deb
-	    apt install ./apt-ntop.deb
+	    apt -y install ./apt-ntop.deb
 	    rm -f ./apt-ntop.deb
 	    ;;
 	*)
@@ -114,6 +114,8 @@ install_debian() {
 	    exit 1
 	    ;;
     esac
+
+    ntop-installer
 }
 
 install_ubuntu() {
@@ -125,9 +127,9 @@ install_ubuntu() {
     case "$VERSION" in
 	26.04|24.04|22.04)
 	    apt update
-	    apt install software-properties-common wget whiptail
+	    apt -y install software-properties-common wget whiptail
 	    wget https://packages.ntop.org/apt$STABLE/$OS_VERSION/all/apt-ntop.deb
-	    apt install ./apt-ntop.deb
+	    apt -y install ./apt-ntop.deb
 	    rm ./apt-ntop.deb
 	    ;;
 	
@@ -137,7 +139,6 @@ install_ubuntu() {
 	    ;;
     esac
 
-    apt -y install ntop-installer
     ntop-installer
 }
 
