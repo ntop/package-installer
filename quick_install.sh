@@ -17,8 +17,7 @@ BRANCH="dev"
 # 0. Usage Help & Argument Parsing
 usage() {
     cat <<EOF
-OF  
-Usag	e: $0 [-s] [-h]
+Usage: $0 [-s] [-h]
 	
 Options:	
   -s    Install stable packages version. Default is dev (nightly).
