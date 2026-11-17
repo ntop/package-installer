@@ -156,11 +156,9 @@ install_rocky() {
 	    dnf config-manager --set-enabled crb
 	    ;;	
 	8)
-	    yum install epel-release
-	    rpm -ivh http://rpms.remirepo.net/enterprise/remi-release-8.rpm
-	    yum install dnf-plugins-core	    
+	    yum -y install epel-release
+	    yum -y install dnf-plugins-core	    
 	    dnf config-manager --set-enabled powertools
-	    dnf config-manager --set-enabled remi
 	    ;;	
 	*)
 	    echo "Warning: RH/Rocky Linux version $VERSION is unsupported."
