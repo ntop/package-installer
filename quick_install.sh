@@ -182,7 +182,7 @@ install_freebsd() {
     case "$MAJOR_VERSION" in
 	14|15|16)
 	    pkg add https://packages.ntop.org/FreeBSD/FreeBSD:$MAJOR_VERSION:amd64/latest/ntop-1.0.pkg
-	    echo "Applying FreeBSD $MAJOR_VERSION specific steps."
+	    pkg install nprobe ntopng
 	    ;;
 	*)
 	    echo "Warning: FreeBSD version $VERSION is unsupported."
